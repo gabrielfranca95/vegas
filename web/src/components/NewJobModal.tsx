@@ -5,6 +5,8 @@ import { api } from '../lib/api';
 import { useData } from '../lib/store';
 import { useToast } from '../lib/toast';
 import JobFields, { emptyJobForm, type JobFormState } from './JobFields';
+import DuplicateModal from './DuplicateModal';
+import type { DuplicateCandidate } from '../../../shared/types';
 import { Button, Field, Input, Modal } from './ui';
 
 export default function NewJobModal({ onClose }: { onClose: () => void }) {
@@ -47,10 +49,19 @@ export default function NewJobModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const save = async () => {
+  const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
+
+  const save = async (skipCheck = false) => {
     if (!form.title.trim() && !form.company.trim()) return toast('Preencha ao menos o cargo ou a empresa.', 'error');
     setSaving(true);
     try {
+      if (!skipCheck) {
+        const found = await api.jobs.checkDuplicates({ url: form.url || url, title: form.title, company: form.company, description: form.description });
+        if (found.length) {
+          setDuplicates(found);
+          return;
+        }
+      }
       const job = await api.jobs.create({ ...form, url: form.url || url || null });
       // Com a automação ligada o servidor já enfileira; sem ela, gera se a opção estiver marcada.
       if (!autoOn && genCV && form.description.trim()) await api.jobs.tailor(job.id).catch(() => {});
@@ -80,7 +91,7 @@ export default function NewJobModal({ onClose }: { onClose: () => void }) {
             </label>
           )}
           <Button onClick={onClose}>Cancelar</Button>
-          <Button variant="primary" loading={saving} onClick={save}>
+          <Button variant="primary" loading={saving} onClick={() => save()}>
             Adicionar ao quadro
           </Button>
         </>
@@ -123,6 +134,28 @@ export default function NewJobModal({ onClose }: { onClose: () => void }) {
         {!fetched && <p className="mb-3 text-xs text-slate-500">Cole o link e clique em “Buscar dados”, ou preencha manualmente.</p>}
         <JobFields form={form} onChange={setForm} />
       </div>
+      {duplicates && (
+        <DuplicateModal
+          candidates={duplicates}
+          newLink={form.url || url}
+          onCancel={() => setDuplicates(null)}
+          onAddAnyway={() => {
+            setDuplicates(null);
+            save(true);
+          }}
+          onSameJob={async (existingId) => {
+            const existing = duplicates.find((d) => d.job.id === existingId)?.job;
+            const link = form.url || url;
+            if (existing && link && existing.url !== link) {
+              const note = `Também publicada em: ${link}`;
+              await api.jobs.update(existingId, { notes: existing.notes ? `${existing.notes}\n${note}` : note });
+              await refresh(['jobs']);
+            }
+            onClose();
+            navigate('vagas', { job: existingId });
+          }}
+        />
+      )}
     </Modal>
   );
 }

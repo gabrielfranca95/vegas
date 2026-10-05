@@ -22,6 +22,7 @@ import type {
   Indicators,
   ProfileData,
   JobChatMessage,
+  DuplicateCandidate,
 } from '../../../shared/types';
 
 /** Disparado quando a sessão expira, para o app voltar à tela de login. */
@@ -91,6 +92,8 @@ export const api = {
     list: () => get<Job[]>('/jobs'),
     companies: () => get<Company[]>('/jobs/companies'),
     updateCompany: (id: number, input: { website?: string; linkedin_url?: string; notes?: string }) => put<Company>(`/jobs/companies/${id}`, input),
+    checkDuplicates: (body: { url?: string | null; title?: string; company?: string; description?: string; excludeId?: number }) =>
+      post<DuplicateCandidate[]>('/jobs/check-duplicates', body),
     scrape: (url: string) => post<ScrapedJob & { existingJobId: number | null }>('/jobs/scrape', { url }),
     create: (input: JobInput) => post<Job>('/jobs', input),
     update: (id: number, input: JobInput) => put<Job>(`/jobs/${id}`, input),

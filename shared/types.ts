@@ -520,3 +520,12 @@ export interface JobChatMessage {
   content: string;
   created_at: string;
 }
+
+// ---------- Possíveis vagas duplicadas ----------
+
+export interface DuplicateCandidate {
+  job: Job;
+  /** Semelhança estimada (0–1). */
+  score: number;
+  reasons: string[];
+}

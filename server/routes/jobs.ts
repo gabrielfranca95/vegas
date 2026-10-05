@@ -9,6 +9,8 @@ import { getSettings } from '../settings.ts';
 import { detectPlatform, scrapeJob } from '../scrape.ts';
 import { HttpError } from './errors.ts';
 import { enqueueTailoring, maybeAutoTailor } from '../tailor.ts';
+import { jobUrlKey, normalizeCompany, textSimilarity, titleSimilarity } from '../similarity.ts';
+import type { DuplicateCandidate } from '../../shared/types.ts';
 
 export const jobsRouter = Router();
 
@@ -33,6 +35,45 @@ jobsRouter.put('/companies/:id', async (req, res) => {
     uid(req),
   );
   res.json(await get('SELECT * FROM companies WHERE id = ? AND user_id = ?', Number(req.params.id), uid(req)));
+});
+
+/**
+ * Procura vagas já cadastradas que podem ser a mesma: mesmo link (ou ID da vaga), mesma empresa com
+ * título/descrição parecidos, ou descrição quase idêntica em outra empresa (ex.: consultoria republicando).
+ */
+jobsRouter.post('/check-duplicates', async (req, res) => {
+  const userId = uid(req);
+  const { url, title, company, description, excludeId } = req.body ?? {};
+  const key = jobUrlKey(url);
+  const comp = normalizeCompany(String(company ?? ''));
+  const desc = String(description ?? '');
+  const candidates: DuplicateCandidate[] = [];
+  for (const job of await listJobs(userId)) {
+    if (excludeId && job.id === Number(excludeId)) continue;
+    const reasons: string[] = [];
+    let score = 0;
+    if (key && jobUrlKey(job.url) === key) {
+      score = 1;
+      reasons.push('Mesmo link da vaga');
+    }
+    const t = titleSimilarity(String(title ?? ''), job.title);
+    const d = desc.trim() && job.description?.trim() ? textSimilarity(desc, job.description) : null;
+    const sameCompany = Boolean(comp) && normalizeCompany(job.company_name ?? '') === comp;
+    if (sameCompany) {
+      const s = d !== null ? Math.max(t * 0.9, 0.3 * t + 0.7 * d) : t * 0.9;
+      if (s >= 0.45 || t >= 0.6) {
+        score = Math.max(score, s);
+        reasons.push('Mesma empresa', `Título ${Math.round(t * 100)}% parecido`);
+        if (d !== null) reasons.push(`Descrição ${Math.round(d * 100)}% parecida`);
+      }
+    } else if (d !== null && d >= 0.7) {
+      score = Math.max(score, d * 0.9);
+      reasons.push(`Descrição ${Math.round(d * 100)}% parecida com a de outra empresa (pode ser consultoria republicando)`);
+    }
+    if (score > 0) candidates.push({ job, score: Math.min(1, score), reasons: [...new Set(reasons)] });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  res.json(candidates.slice(0, 5));
 });
 
 jobsRouter.post('/scrape', async (req, res) => {
