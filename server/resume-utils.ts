@@ -1,0 +1,115 @@
+import { randomUUID } from 'node:crypto';
+import type { ResumeData } from '../shared/types.ts';
+
+export function emptyResume(): ResumeData {
+  return {
+    lang: 'pt',
+    personal: { name: '', headline: '', email: '', phone: '', location: '', linkedin: '', github: '', website: '' },
+    summary: '',
+    experiences: [],
+    education: [],
+    skills: [],
+    languages: [],
+    certifications: [],
+    projects: [],
+  };
+}
+
+const str = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+const arr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+const id = (v: unknown) => (typeof v === 'string' && v ? v : randomUUID());
+
+/** Garante que um JSON (vindo da IA ou do front) tenha exatamente o formato de ResumeData. */
+export function normalizeResume(input: any): ResumeData {
+  const base = emptyResume();
+  const p = input?.personal ?? {};
+  return {
+    lang: input?.lang === 'en' ? 'en' : 'pt',
+    personal: Object.fromEntries(Object.keys(base.personal).map((k) => [k, str(p[k])])) as ResumeData['personal'],
+    summary: str(input?.summary),
+    experiences: arr(input?.experiences).map((e) => ({
+      id: id(e?.id),
+      company: str(e?.company),
+      role: str(e?.role),
+      location: str(e?.location),
+      start: str(e?.start),
+      end: str(e?.end),
+      current: Boolean(e?.current),
+      description: Array.isArray(e?.description) ? e.description.map(str).join('\n') : str(e?.description),
+    })),
+    education: arr(input?.education).map((e) => ({
+      id: id(e?.id),
+      institution: str(e?.institution),
+      degree: str(e?.degree),
+      start: str(e?.start),
+      end: str(e?.end),
+      description: str(e?.description),
+    })),
+    skills: arr(input?.skills).map((s) => ({
+      id: id(s?.id),
+      category: str(s?.category),
+      items: Array.isArray(s?.items) ? s.items.map(str).join(', ') : str(s?.items),
+    })),
+    languages: arr(input?.languages).map((l) => ({ id: id(l?.id), name: str(l?.name), level: str(l?.level) })),
+    certifications: arr(input?.certifications).map((c) => ({
+      id: id(c?.id),
+      name: str(c?.name),
+      issuer: str(c?.issuer),
+      year: str(c?.year),
+    })),
+    projects: arr(input?.projects).map((x) => ({
+      id: id(x?.id),
+      name: str(x?.name),
+      link: str(x?.link),
+      description: str(x?.description),
+    })),
+  };
+}
+
+export const SECTION_LABELS = {
+  pt: {
+    summary: 'Resumo profissional',
+    experiences: 'Experiência profissional',
+    education: 'Formação acadêmica',
+    skills: 'Habilidades',
+    languages: 'Idiomas',
+    certifications: 'Certificações',
+    projects: 'Projetos',
+    current: 'Atual',
+  },
+  en: {
+    summary: 'Professional summary',
+    experiences: 'Professional experience',
+    education: 'Education',
+    skills: 'Skills',
+    languages: 'Languages',
+    certifications: 'Certifications',
+    projects: 'Projects',
+    current: 'Present',
+  },
+} as const;
+
+export const bullets = (text: string) =>
+  text
+    .split('\n')
+    .map((l) => l.replace(/^\s*[-•*–]\s*/, '').trim())
+    .filter(Boolean);
+
+export const period = (start: string, end: string, current: boolean, lang: 'pt' | 'en') => {
+  const fim = current ? SECTION_LABELS[lang].current : end;
+  return [start, fim].filter(Boolean).join(' – ');
+};
+
+export const contactLine = (p: ResumeData['personal']) =>
+  [p.location, p.phone, p.email, p.linkedin, p.github, p.website].map((s) => s.trim()).filter(Boolean);
+
+export function safeFileName(name: string) {
+  return (
+    name
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80) || 'curriculo'
+  );
+}
