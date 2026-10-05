@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   AlarmClockOff,
   Briefcase,
   Check,
-  Clock,
   Copy,
   ExternalLink,
   MessageCircleReply,
@@ -24,13 +23,14 @@ import {
   Plus,
 } from 'lucide-react';
 import type { Contact, ContactEvent, EventType, MessageKind } from '../../../shared/types';
-import { CONTACT_STAGES, EV_KINDS, EV_STATUSES, EVENT_LABELS, MESSAGE_KINDS, ROLE_CATEGORIES } from '../../../shared/types';
+import { EV_KINDS, EV_STATUSES, EVENT_LABELS, MESSAGE_KINDS, ROLE_CATEGORIES } from '../../../shared/types';
 import { navigate } from '../App';
 import { api } from '../lib/api';
 import { copyText, formatDateTime, formatHours, fromLocalInput, relativeTime, toLocalInput } from '../lib/format';
 import { useData } from '../lib/store';
 import { useToast } from '../lib/toast';
 import ContactForm from './ContactForm';
+import { currentStep, DueBadge, JourneyStepper, stepStatusText, stepTitle } from './journey';
 import { Badge, Button, Input, Select, Textarea } from './ui';
 
 const EVENT_ICONS: Record<EventType, React.ReactNode> = {
@@ -75,7 +75,8 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
   const { settings, upsertContact, refresh, jobs, evs } = useData();
   const toast = useToast();
   const [editOpen, setEditOpen] = useState(false);
-  const [kind, setKind] = useState<MessageKind>(contact.nextAction.suggestedMessage ?? defaultKind(contact));
+  const [kind, setKind] = useState<MessageKind>(stepKind(contact));
+  const composerRef = useRef<HTMLDivElement>(null);
   const [instruction, setInstruction] = useState('');
   const [variants, setVariants] = useState<string[]>([]);
   const [activeVariant, setActiveVariant] = useState(0);
@@ -97,7 +98,6 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
   const limit = settings?.followup.inviteNoteLimit ?? 200;
   const overLimit = kind === 'invite_note' && text.length > limit;
   const role = ROLE_CATEGORIES.find((r) => r.key === contact.role_category);
-  const stage = CONTACT_STAGES.find((s) => s.key === contact.stage);
   const timings = useMemo(() => computeTimings(contact.events), [contact.events]);
 
   const apply = async (p: Promise<Contact>, msg?: string) => {
@@ -121,14 +121,15 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
     return updated;
   };
 
-  const generate = async () => {
+  const generate = async (kindOverride?: MessageKind) => {
+    const kind_ = kindOverride ?? kind;
     setGenerating(true);
     try {
-      if (kind === 'ev_delivery' && !evId) {
+      if (kind_ === 'ev_delivery' && !evId) {
         toast('Escolha (ou crie) o EV que será entregue.', 'error');
         return;
       }
-      const out = await api.contacts.generate(contact.id, kind, instruction || undefined, kind === 'ev_delivery' ? evId ?? undefined : undefined);
+      const out = await api.contacts.generate(contact.id, kind_, instruction || undefined, kind_ === 'ev_delivery' ? evId ?? undefined : undefined);
       setVariants(out.variants);
       setActiveVariant(0);
       setText(out.variants[0] ?? '');
@@ -159,7 +160,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
     if (updated) {
       setText('');
       setVariants([]);
-      setKind(updated.nextAction.suggestedMessage ?? defaultKind(updated));
+      setKind(stepKind(updated));
     }
   };
 
@@ -176,11 +177,32 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
   };
 
   const na = contact.nextAction;
-  const bannerCls = na.urgent
-    ? 'border-red-200 bg-red-50 text-red-800'
-    : na.kind === 'none'
-      ? 'border-slate-200 bg-slate-50 text-slate-600'
-      : 'border-sky-200 bg-sky-50 text-sky-800';
+  const cur = currentStep(contact);
+  const curKind = cur.status === 'current' ? cur.messageKind : null;
+  const kindLabel = (k: MessageKind) => MESSAGE_KINDS.find((m) => m.key === k)?.label ?? k;
+  const openForm = (type: EventType) => setEventForm({ type, content: '', at: toLocalInput(null), evId: evId ?? undefined });
+
+  // Atalho de registro que faz sentido na etapa atual.
+  const stepAction: { label: string; run: () => void } | null =
+    contact.cadence.phase === 'encerrado'
+      ? { label: 'Reabrir', run: () => addEvent('reopened') }
+      : cur.key === 'invite'
+        ? { label: 'Já enviei o convite', run: () => addEvent('invite_sent') }
+        : cur.key === 'accept'
+          ? { label: 'Aceitou o convite', run: () => addEvent('invite_accepted') }
+          : cur.key === 'reply'
+            ? { label: 'Encerrar abordagem…', run: () => openForm('closed') }
+            : cur.key === 'interview'
+              ? { label: 'Registrar entrevista…', run: () => openForm('interview') }
+              : cur.key === 'offer'
+                ? { label: 'Registrar proposta…', run: () => openForm('offer') }
+                : { label: 'A pessoa respondeu…', run: () => openForm('reply_received') };
+
+  const writeStepMessage = (k: MessageKind) => {
+    setKind(k);
+    composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    generate(k);
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-3 md:p-5">
@@ -190,7 +212,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold text-slate-900">{contact.name}</h2>
-            <Badge color="#4f46e5">{stage?.label}</Badge>
+            <Badge color="#4f46e5">{stepTitle(contact)}</Badge>
             <Badge color="#0f766e">{role?.label}</Badge>
           </div>
           <p className="text-sm text-slate-600">
@@ -226,27 +248,48 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
         </div>
       </div>
 
-      {/* Próxima ação */}
-      <div className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${bannerCls}`}>
-        {na.urgent ? <BellRing size={18} /> : <Clock size={18} />}
-        <div className="flex-1">
-          <p className="font-semibold">{na.label}</p>
-          {na.dueAt && na.kind !== 'none' && na.kind !== 'in_process' && (
-            <p className="text-xs opacity-80">
-              {na.urgent ? 'Pendente desde' : 'Lembrete'} {formatDateTime(na.dueAt)} ({relativeTime(na.dueAt)})
-            </p>
-          )}
+      {/* Jornada da abordagem */}
+      <div className={`rounded-xl border bg-white p-4 ${na.urgent ? 'border-red-200' : 'border-slate-200'}`}>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">Jornada da abordagem</p>
+          <span className="text-xs text-slate-400">
+            {contact.cadence.phase === 'conversa' ? 'fase: conversa' : contact.cadence.phase === 'encerrado' ? 'encerrada' : `etapa ${contact.cadence.stepNumber} de ${contact.cadence.stepTotal}`}
+          </span>
         </div>
-        {na.kind !== 'none' && na.kind !== 'in_process' && (
-          <div className="flex gap-1">
-            <Button size="sm" variant="ghost" icon={<AlarmClockOff size={14} />} onClick={() => snooze(1)}>
-              +1 dia
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => snooze(3)}>
-              +3 dias
-            </Button>
+        <JourneyStepper contact={contact} />
+
+        <div className={`mt-4 rounded-lg px-4 py-3 ${na.urgent ? 'bg-red-50' : contact.cadence.phase === 'encerrado' ? 'bg-slate-50' : 'bg-indigo-50/60'}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide uppercase ${na.urgent ? 'bg-red-600 text-white' : 'bg-slate-700 text-white'}`}>
+              {na.urgent ? 'Agora' : contact.cadence.phase === 'encerrado' ? 'Fim' : 'Próximo'}
+            </span>
+            <p className={`font-semibold ${na.urgent ? 'text-red-800' : 'text-slate-800'}`}>{stepStatusText(contact)}</p>
+            {cur.status === 'current' && <DueBadge iso={cur.dueAt} />}
           </div>
-        )}
+          {cur.hint && cur.status === 'current' && cur.key !== 'conversa' && <p className="mt-1 text-xs text-slate-600">{cur.hint}</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {curKind && (
+              <Button size="sm" variant="ai" icon={<Sparkles size={13} />} loading={generating} onClick={() => writeStepMessage(curKind)}>
+                Gerar: {kindLabel(curKind)}
+              </Button>
+            )}
+            {stepAction && (
+              <Button size="sm" onClick={stepAction.run}>
+                {stepAction.label}
+              </Button>
+            )}
+            {na.kind !== 'none' && na.kind !== 'in_process' && (
+              <>
+                <Button size="sm" variant="ghost" icon={<AlarmClockOff size={13} />} onClick={() => snooze(1)} className="sm:ml-auto">
+                  Adiar 1 dia
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => snooze(3)}>
+                  3 dias
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Entrega de Valor */}
@@ -288,7 +331,17 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
       </div>
 
       {/* Compositor */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div ref={composerRef} className="scroll-mt-4 rounded-xl border border-slate-200 bg-white p-4">
+        <p className="mb-3 text-sm text-slate-600">
+          {curKind ? (
+            <>
+              Mensagem desta etapa: <b className="text-slate-800">{kindLabel(curKind)}</b>
+              {kind !== curKind && <span className="text-amber-700"> · você escolheu outro tipo abaixo</span>}
+            </>
+          ) : (
+            'Escreva ou gere uma mensagem.'
+          )}
+        </p>
         <div className="mb-3 flex flex-wrap items-end gap-2">
           <label className="w-full sm:min-w-56 sm:flex-1">
             <span className="mb-1 block text-xs font-semibold text-slate-600">Tipo de mensagem</span>
@@ -304,7 +357,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
             <span className="mb-1 block text-xs font-semibold text-slate-600">Instrução extra (opcional)</span>
             <Input value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="ex.: mencionar que tenho disponibilidade imediata" onKeyDown={(e) => e.key === 'Enter' && generate()} />
           </label>
-          <Button variant="ai" icon={<Sparkles size={16} />} loading={generating} onClick={generate}>
+          <Button variant="ai" icon={<Sparkles size={16} />} loading={generating} onClick={() => generate()}>
             Gerar com IA
           </Button>
         </div>
@@ -430,7 +483,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
                   const updated = await addEvent(eventForm.type, eventForm.content || undefined, fromLocalInput(eventForm.at), eventForm.evId);
                   if (updated) {
                     setEventForm(null);
-                    if (updated.nextAction.suggestedMessage) setKind(updated.nextAction.suggestedMessage);
+                    setKind(stepKind(updated));
                   }
                 }}
               >
@@ -531,6 +584,12 @@ function TimelineItem({ event, onChange }: { event: ContactEvent; onChange: (p: 
       )}
     </li>
   );
+}
+
+/** Tipo de mensagem da etapa atual da jornada (ou um padrão pelo estágio). */
+function stepKind(c: Contact): MessageKind {
+  const cur = c.cadence.steps[c.cadence.currentIndex];
+  return (cur?.status === 'current' ? cur.messageKind : null) ?? c.nextAction.suggestedMessage ?? defaultKind(c);
 }
 
 function defaultKind(c: Contact): MessageKind {

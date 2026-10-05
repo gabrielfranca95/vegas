@@ -68,3 +68,23 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 export const uid = () => crypto.randomUUID();
+
+export type DueTone = 'late' | 'today' | 'soon' | 'later';
+
+/** Texto curto de prazo: "atrasado 3 dias", "hoje", "amanhã", "em 4 dias (09/10)". */
+export function dueInfo(iso: string | null | undefined, now = new Date()): { text: string; tone: DueTone } | null {
+  if (!iso) return null;
+  const due = new Date(iso);
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(due) - startOf(now)) / 86_400_000);
+  const dm = due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  if (due.getTime() <= now.getTime() && days < 0) return { text: `atrasado ${-days === 1 ? '1 dia' : `${-days} dias`}`, tone: 'late' };
+  if (days <= 0) return { text: 'hoje', tone: 'today' };
+  if (days === 1) return { text: `amanhã (${dm})`, tone: 'soon' };
+  return { text: `em ${days} dias (${dm})`, tone: days <= 2 ? 'soon' : 'later' };
+}
+
+export function shortDate(iso: string | null | undefined) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}

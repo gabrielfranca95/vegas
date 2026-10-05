@@ -191,6 +191,43 @@ export interface NextAction {
   suggestedMessage: MessageKind | null;
 }
 
+export type CadenceStatus = 'done' | 'current' | 'upcoming' | 'skipped';
+
+/** Uma etapa da jornada de abordagem de uma pessoa. */
+export interface CadenceStep {
+  key: string;
+  label: string;
+  status: CadenceStatus;
+  /** Quando aconteceu (etapas concluídas). */
+  at: string | null;
+  /** Prazo/previsão (etapa atual e próximas). */
+  dueAt: string | null;
+  hint: string | null;
+  messageKind: MessageKind | null;
+}
+
+export interface Cadence {
+  phase: 'abordagem' | 'conversa' | 'encerrado';
+  steps: CadenceStep[];
+  currentIndex: number;
+  /** Número da etapa atual dentro da fase de abordagem e total de etapas dela. */
+  stepNumber: number;
+  stepTotal: number;
+}
+
+export interface ProfileData {
+  url: string;
+  name: string;
+  headline: string;
+  roleTitle: string;
+  company: string;
+  location: string;
+  about: string;
+  previousCompanies: string[];
+  roleCategory: RoleCategory;
+  warning?: string;
+}
+
 export interface Contact {
   id: number;
   name: string;
@@ -210,6 +247,7 @@ export interface Contact {
   updated_at: string;
   events: ContactEvent[];
   nextAction: NextAction;
+  cadence: Cadence;
   lastActivityAt: string;
 }
 

@@ -1,6 +1,6 @@
 import type { Contact, ContactEvent, EV, Job, Resume, ResumeData, Settings } from '../shared/types.ts';
 import { all, get, nowIso, run } from './db.ts';
-import { computeNextAction, deriveStage } from './followup.ts';
+import { computeCadence, computeNextAction, deriveStage } from './followup.ts';
 import { getSettings } from './settings.ts';
 import { normalizeResume } from './resume-utils.ts';
 
@@ -29,7 +29,7 @@ async function hydrateContacts(rows: any[], settings: Settings): Promise<Contact
   return rows.map((r) => {
     const ev = byContact.get(r.id) ?? [];
     const lastActivityAt = ev.length ? ev[ev.length - 1].occurred_at : r.created_at;
-    return { ...r, events: ev, lastActivityAt, nextAction: computeNextAction(r, ev, settings) } as Contact;
+    return { ...r, events: ev, lastActivityAt, nextAction: computeNextAction(r, ev, settings), cadence: computeCadence(r, ev, settings) } as Contact;
   });
 }
 

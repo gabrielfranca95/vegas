@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, BellRing, ChevronLeft, Plus, Search, UserRound } from 'lucide-react';
+import { BarChart3, BellRing, Building2, ChevronDown, ChevronLeft, Plus, Search, UserRound } from 'lucide-react';
 import type { Contact, ContactStage, Metrics, MetricsBucket } from '../../../shared/types';
 import { CONTACT_STAGES, ROLE_CATEGORIES } from '../../../shared/types';
 import type { Route } from '../App';
 import { navigate } from '../App';
 import ContactForm from '../components/ContactForm';
 import ContactPanel from '../components/ContactPanel';
+import { currentStep, DueBadge, stepTitle } from '../components/journey';
 import { Button, Empty, Input } from '../components/ui';
 import { api } from '../lib/api';
-import { formatHours, formatPct, relativeTime } from '../lib/format';
+import { formatHours, formatPct } from '../lib/format';
 import { useData } from '../lib/store';
 
 type Filter = 'acao' | 'todos' | ContactStage;
@@ -52,6 +53,21 @@ export default function MessagesPage({ route }: { route: Route }) {
       .filter((c) => !q || `${c.name} ${c.company_name ?? ''} ${c.role_title ?? ''}`.toLowerCase().includes(q))
       .sort(sortByUrgency);
   }, [contacts, jobs, filter, query, jobFilter]);
+
+  // Agrupa por empresa; empresas com ação pendente (e prazo mais próximo) primeiro.
+  const groups = useMemo(() => {
+    const map = new Map<string, Contact[]>();
+    for (const c of list) {
+      const key = c.company_name || 'Sem empresa';
+      const arr = map.get(key) ?? [];
+      arr.push(c);
+      map.set(key, arr);
+    }
+    return [...map.entries()]
+      .map(([company, cs]) => ({ company, contacts: cs }))
+      .sort((a, b) => sortByUrgency(a.contacts[0], b.contacts[0]) || a.company.localeCompare(b.company));
+  }, [list]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   // Se não há nada urgente, a aba "Ação agora" vazia não ajuda: mostra todos.
   useEffect(() => {
@@ -103,40 +119,72 @@ export default function MessagesPage({ route }: { route: Route }) {
             ))}
           </div>
         </div>
-        <ul className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
           {list.length === 0 && (
             <Empty icon={<UserRound size={28} />} title={contacts.length ? 'Nada neste filtro' : 'Nenhuma pessoa ainda'}>
               {contacts.length ? 'Tente outro filtro.' : 'Adicione um recrutador, líder ou alguém da empresa para começar.'}
             </Empty>
           )}
-          {list.map((c) => (
-            <li key={c.id}>
-              <button
-                onClick={() => navigate('mensagens', { contact: c.id })}
-                className={`flex w-full gap-3 border-b border-slate-100 px-3 py-3 text-left transition ${selectedId === c.id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
-              >
-                <div className={`grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold ${c.nextAction.urgent ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
-                  {c.name[0]?.toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <p className="truncate font-medium text-slate-800">{c.name}</p>
-                    <span className="shrink-0 text-[11px] text-slate-400">{relativeTime(c.lastActivityAt)}</span>
-                  </div>
-                  <p className="truncate text-xs text-slate-500">
-                    {roleLabel(c.role_category)}
-                    {c.company_name && ` · ${c.company_name}`}
-                  </p>
-                  <p className={`mt-0.5 flex items-center gap-1 truncate text-xs ${c.nextAction.urgent ? 'font-semibold text-red-600' : 'text-slate-500'}`}>
-                    {c.nextAction.urgent && <BellRing size={12} className="shrink-0" />}
-                    {c.nextAction.label}
-                    {!c.nextAction.urgent && c.nextAction.dueAt && c.stage !== 'encerrado' && <span className="text-slate-400">· {relativeTime(c.nextAction.dueAt)}</span>}
-                  </p>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
+          {groups.map((g) => {
+            const isCollapsed = collapsed.has(g.company);
+            const urgent = g.contacts.filter((c) => c.nextAction.urgent).length;
+            return (
+              <section key={g.company} className="border-b border-slate-200">
+                <button
+                  onClick={() =>
+                    setCollapsed((set) => {
+                      const next = new Set(set);
+                      if (next.has(g.company)) next.delete(g.company);
+                      else next.add(g.company);
+                      return next;
+                    })
+                  }
+                  className="sticky top-0 z-[1] flex w-full items-center gap-2 bg-slate-50/95 px-3 py-2 text-left backdrop-blur"
+                >
+                  <ChevronDown size={15} className={`shrink-0 text-slate-400 transition ${isCollapsed ? '-rotate-90' : ''}`} />
+                  <Building2 size={15} className="shrink-0 text-slate-500" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{g.company}</span>
+                  <span className="text-[11px] text-slate-500">{g.contacts.length} pessoa(s)</span>
+                  {urgent > 0 && <span className="rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{urgent}</span>}
+                </button>
+                {!isCollapsed && (
+                  <ul>
+                    {g.contacts.map((c) => {
+                      const cur = currentStep(c);
+                      return (
+                        <li key={c.id}>
+                          <button
+                            onClick={() => navigate('mensagens', { contact: c.id })}
+                            className={`flex w-full gap-3 border-t border-slate-100 py-2.5 pr-3 pl-5 text-left transition ${selectedId === c.id ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}
+                          >
+                            <div
+                              className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${c.nextAction.urgent ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}
+                            >
+                              {c.name[0]?.toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <p className="truncate text-sm font-medium text-slate-800">{c.name}</p>
+                                <span className="shrink-0 text-[11px] text-slate-400">{roleLabel(c.role_category)}</span>
+                              </div>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                <span className={`text-xs ${c.nextAction.urgent ? 'font-semibold text-red-600' : 'text-slate-600'}`}>
+                                  {c.nextAction.urgent && <BellRing size={11} className="mr-1 inline" />}
+                                  {stepTitle(c)}
+                                </span>
+                                {cur.status === 'current' && <DueBadge iso={cur.dueAt} />}
+                              </div>
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
+        </div>
       </aside>
 
       <section className={`scroll-thin min-w-0 flex-1 overflow-y-auto md:block ${selected || showMetrics ? 'block' : 'hidden'}`}>

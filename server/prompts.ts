@@ -288,3 +288,13 @@ export function buildEVContentPrompt(c: EVContext, ev: { kind: EVKind; title: st
   const prompt = `## EV a produzir\nFormato: ${evKindLabel(ev.kind)}\nTítulo: ${ev.title}\nIdeia: ${ev.summary ?? ''}\n\n${evContextBlock(c)}`;
   return { system, prompt };
 }
+
+// ---------- Perfil do LinkedIn (texto colado) ----------
+
+export function buildProfilePrompt(text: string) {
+  const system = [
+    'Você extrai dados de um perfil do LinkedIn a partir do texto copiado da página. Não invente: campos sem informação ficam vazios.',
+    'Responda em JSON: {"name": "", "headline": "", "roleTitle": "cargo atual", "company": "empresa atual", "location": "", "about": "resumo do Sobre em até 600 caracteres", "previousCompanies": ["até 5 empresas anteriores"]}',
+  ].join('\n');
+  return { system, prompt: `## Texto do perfil\n${text.slice(0, 15000)}` };
+}

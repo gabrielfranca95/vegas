@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import type { EventType, MessageKind } from '../../shared/types.ts';
+import type { EventType, MessageKind, ProfileData } from '../../shared/types.ts';
 import { complete, completeJson } from '../ai.ts';
 import { uid } from '../auth.ts';
 import { findOrCreateCompany, get, nowIso, run } from '../db.ts';
 import { computeMetrics } from '../followup.ts';
-import { buildMessagePrompt, fallbackMessage, type MessagePromptInput } from '../prompts.ts';
+import { buildMessagePrompt, buildProfilePrompt, fallbackMessage, type MessagePromptInput } from '../prompts.ts';
+import { canonicalProfileUrl, guessRoleCategory, profileNotes, scrapeLinkedInProfile } from '../profile.ts';
 import { getContact, getContactEvents, getEV, jobForContact, listContacts, ownContact, ownJob, refreshContactStage, resumeForJob } from '../repo.ts';
 import { getSettings } from '../settings.ts';
 import { HttpError } from './errors.ts';
@@ -29,6 +30,8 @@ const FIELDS = ['name', 'linkedin_url', 'role_category', 'role_title', 'platform
 function normalizeLinkedIn(url: unknown) {
   const s = String(url ?? '').trim();
   if (!s) return null;
+  const profile = canonicalProfileUrl(s);
+  if (profile) return profile;
   if (/^https?:\/\//i.test(s)) return s;
   if (/linkedin\.com/i.test(s)) return `https://${s.replace(/^\/+/, '')}`;
   return `https://www.linkedin.com/in/${s.replace(/^@/, '')}`;
@@ -63,6 +66,45 @@ contactsRouter.get('/', async (req, res) => {
 
 contactsRouter.get('/metrics', async (req, res) => {
   res.json(computeMetrics(await listContacts(uid(req))));
+});
+
+/**
+ * Lê um perfil do LinkedIn: pelo link (dados públicos) ou pelo texto colado da página (via IA).
+ * Também indica se a pessoa já está cadastrada e qual vaga da mesma empresa existe no quadro.
+ */
+contactsRouter.post('/parse-profile', async (req, res) => {
+  const userId = uid(req);
+  const url = String(req.body?.url ?? '').trim();
+  const text = String(req.body?.text ?? '').trim();
+  let profile: ProfileData;
+  if (text) {
+    const out = await completeJson<Partial<ProfileData>>({ userId, ...buildProfilePrompt(text) });
+    const roleTitle = String(out.roleTitle ?? '');
+    profile = {
+      url: canonicalProfileUrl(url) ?? url,
+      name: String(out.name ?? ''),
+      headline: String(out.headline ?? ''),
+      roleTitle,
+      company: String(out.company ?? ''),
+      location: String(out.location ?? ''),
+      about: String(out.about ?? ''),
+      previousCompanies: Array.isArray(out.previousCompanies) ? out.previousCompanies.map(String).slice(0, 5) : [],
+      roleCategory: guessRoleCategory(`${roleTitle} ${out.headline ?? ''}`),
+    };
+  } else {
+    profile = await scrapeLinkedInProfile(url);
+  }
+  const existing = profile.url
+    ? await get<{ id: number; name: string }>('SELECT id, name FROM contacts WHERE user_id = ? AND linkedin_url = ?', userId, profile.url)
+    : undefined;
+  const job = profile.company
+    ? await get<{ id: number; title: string }>(
+        'SELECT j.id, j.title FROM jobs j JOIN companies c ON c.id = j.company_id WHERE j.user_id = ? AND lower(c.name) = lower(?) ORDER BY j.updated_at DESC LIMIT 1',
+        userId,
+        profile.company,
+      )
+    : undefined;
+  res.json({ profile, notes: profileNotes(profile), existingContactId: existing?.id ?? null, suggestedJob: job ?? null });
 });
 
 contactsRouter.post('/', async (req, res) => {

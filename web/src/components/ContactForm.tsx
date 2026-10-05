@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { Contact, Platform, RoleCategory } from '../../../shared/types';
+import { useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ClipboardPaste, Wand2 } from 'lucide-react';
+import type { Contact, Platform, ProfileData, RoleCategory } from '../../../shared/types';
 import { PLATFORMS, ROLE_CATEGORIES } from '../../../shared/types';
 import { api, type ContactInput } from '../lib/api';
 import { useData } from '../lib/store';
@@ -31,6 +32,54 @@ export default function ContactForm({ open, onClose, contact, defaults, onSaved 
   }));
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+
+  // ---- Leitura do perfil do LinkedIn ----
+  const [fetching, setFetching] = useState(false);
+  const [found, setFound] = useState<{ profile: ProfileData; existingContactId: number | null; jobTitle: string | null } | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const lastFetched = useRef('');
+
+  const applyProfile = (out: Awaited<ReturnType<typeof api.contacts.parseProfile>>) => {
+    const p = out.profile;
+    setForm((f) => ({
+      ...f,
+      linkedin_url: p.url || f.linkedin_url,
+      name: p.name || f.name,
+      role_title: p.roleTitle || p.headline || f.role_title,
+      company: p.company || f.company,
+      role_category: p.roleTitle || p.headline ? p.roleCategory : f.role_category,
+      job_id: f.job_id ?? out.suggestedJob?.id ?? null,
+      notes: f.notes.trim() ? f.notes : out.notes,
+    }));
+    setFound({ profile: p, existingContactId: contact ? null : out.existingContactId, jobTitle: out.suggestedJob?.title ?? null });
+    if (p.warning) setPasteOpen(true);
+  };
+
+  const fetchProfile = async (url = form.linkedin_url) => {
+    if (!/linkedin\.com\/in\//i.test(url) || lastFetched.current === url) return;
+    lastFetched.current = url;
+    setFetching(true);
+    try {
+      applyProfile(await api.contacts.parseProfile({ url }));
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const extractFromText = async () => {
+    setFetching(true);
+    try {
+      applyProfile(await api.contacts.parseProfile({ url: form.linkedin_url, text: pasteText }));
+      setPasteOpen(false);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const onJobChange = (value: string) => {
     const id = value ? Number(value) : null;
@@ -74,12 +123,77 @@ export default function ContactForm({ open, onClose, contact, defaults, onSaved 
         </>
       }
     >
+      <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
+        <Field label="Perfil do LinkedIn" hint="Cole o link: nome, cargo, empresa e tipo de pessoa são preenchidos automaticamente.">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              autoFocus={!contact}
+              value={form.linkedin_url}
+              onChange={(e) => set('linkedin_url', e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData('text');
+                setTimeout(() => fetchProfile(text.trim()), 0);
+              }}
+              onBlur={() => fetchProfile()}
+              placeholder="https://www.linkedin.com/in/maria-souza"
+            />
+            <Button
+              variant="primary"
+              icon={<Wand2 size={15} />}
+              loading={fetching}
+              disabled={!form.linkedin_url.trim()}
+              onClick={() => {
+                lastFetched.current = '';
+                fetchProfile();
+              }}
+              className="shrink-0"
+            >
+              Buscar dados
+            </Button>
+          </div>
+        </Field>
+        {found && !found.profile.warning && (
+          <p className="mt-2 flex items-start gap-1.5 text-sm text-emerald-700">
+            <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+            <span>
+              Encontrado: <b>{found.profile.name}</b>
+              {found.profile.roleTitle && ` — ${found.profile.roleTitle}`}
+              {found.profile.company && ` @ ${found.profile.company}`}
+              {found.jobTitle && <span className="text-slate-600"> · vinculado à vaga “{found.jobTitle}”</span>}
+            </span>
+          </p>
+        )}
+        {found?.profile.warning && (
+          <p className="mt-2 flex items-start gap-1.5 text-sm text-amber-700">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {found.profile.warning}
+          </p>
+        )}
+        {found?.existingContactId && (
+          <p className="mt-2 flex items-start gap-1.5 text-sm text-red-700">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" /> Essa pessoa já está cadastrada — salve só se quiser duplicar.
+          </p>
+        )}
+        <button type="button" onClick={() => setPasteOpen((o) => !o)} className="mt-2 flex items-center gap-1 text-xs font-medium text-indigo-700 hover:underline">
+          <ClipboardPaste size={13} /> {pasteOpen ? 'Fechar' : 'Ou cole o texto do perfil (se o LinkedIn bloquear)'}
+        </button>
+        {pasteOpen && (
+          <div className="mt-2 space-y-2">
+            <Textarea
+              rows={5}
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="No perfil da pessoa, selecione tudo (Ctrl+A), copie (Ctrl+C) e cole aqui."
+            />
+            <Button size="sm" variant="ai" icon={<Wand2 size={13} />} loading={fetching} disabled={pasteText.trim().length < 40} onClick={extractFromText}>
+              Extrair com IA
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Nome *">
-          <Input autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Maria Souza" />
-        </Field>
-        <Field label="Perfil do LinkedIn (link)" hint="Pode colar o link completo ou só o usuário">
-          <Input value={form.linkedin_url} onChange={(e) => set('linkedin_url', e.target.value)} placeholder="linkedin.com/in/maria-souza" />
+          <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Maria Souza" />
         </Field>
         <Field label="Tipo de pessoa (define a abordagem)">
           <Select value={form.role_category} onChange={(e) => set('role_category', e.target.value as RoleCategory)}>

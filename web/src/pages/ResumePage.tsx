@@ -15,7 +15,6 @@ import { useToast } from '../lib/toast';
 
 export default function ResumePage({ route }: { route: Route }) {
   const { resumes, refresh } = useData();
-  const toast = useToast();
   const [importOpen, setImportOpen] = useState<null | { targetId?: number }>(null);
   const [reloadKey, setReloadKey] = useState(0);
 

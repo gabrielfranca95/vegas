@@ -20,6 +20,7 @@ import type {
   EVKind,
   EVStatus,
   Indicators,
+  ProfileData,
 } from '../../../shared/types';
 
 /** Disparado quando a sessão expira, para o app voltar à tela de login. */
@@ -99,6 +100,8 @@ export const api = {
   contacts: {
     list: () => get<Contact[]>('/contacts'),
     metrics: () => get<Metrics>('/contacts/metrics'),
+    parseProfile: (body: { url?: string; text?: string }) =>
+      post<{ profile: ProfileData; notes: string; existingContactId: number | null; suggestedJob: { id: number; title: string } | null }>('/contacts/parse-profile', body),
     create: (input: ContactInput) => post<Contact>('/contacts', input),
     update: (id: number, input: ContactInput) => put<Contact>(`/contacts/${id}`, input),
     remove: (id: number) => del(`/contacts/${id}`),
