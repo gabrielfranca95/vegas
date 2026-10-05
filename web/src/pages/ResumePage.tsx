@@ -16,6 +16,7 @@ import { useToast } from '../lib/toast';
 
 export default function ResumePage({ route }: { route: Route }) {
   const { resumes, refresh } = useData();
+  const toast = useToast();
   const [importOpen, setImportOpen] = useState<null | { targetId?: number }>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [automationOpen, setAutomationOpen] = useState(false);
@@ -23,6 +24,12 @@ export default function ResumePage({ route }: { route: Route }) {
   const official = resumes.find((r) => r.is_official);
   const selectedId = Number(route.params.get('id')) || official?.id || resumes[0]?.id || null;
   const selected = resumes.find((r) => r.id === selectedId) ?? null;
+
+  const setOfficial = async (id: number) => {
+    await api.resumes.setOfficial(id);
+    await refresh(['resumes']);
+    toast('Currículo oficial atualizado — ele é a base das adaptações');
+  };
 
   const createBlank = async () => {
     const r = await api.resumes.create({ name: resumes.length ? 'Novo currículo' : 'Currículo oficial' });
@@ -75,16 +82,17 @@ export default function ResumePage({ route }: { route: Route }) {
         </div>
         <ul className="flex-1">
           {resumes.map((r) => (
-            <li key={r.id}>
+            <li key={r.id} className={`flex items-start border-l-4 ${r.id === selectedId ? 'border-indigo-600 bg-indigo-50' : 'border-transparent hover:bg-slate-50'}`}>
               <button
-                onClick={() => navigate('curriculo', { id: r.id })}
-                className={`flex w-full items-start gap-2 border-l-4 px-3 py-2.5 text-left ${r.id === selectedId ? 'border-indigo-600 bg-indigo-50' : 'border-transparent hover:bg-slate-50'}`}
+                onClick={() => !r.is_official && setOfficial(r.id)}
+                className="mt-2 ml-2 rounded p-1 hover:bg-amber-50"
+                title={r.is_official ? 'Este é o currículo oficial (base das adaptações)' : 'Tornar este o currículo oficial (base das adaptações)'}
               >
-                {r.is_official ? <Star size={15} className="mt-0.5 shrink-0 fill-amber-400 text-amber-400" /> : <FileText size={15} className="mt-0.5 shrink-0 text-slate-400" />}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-800">{r.name}</p>
-                  <p className="truncate text-xs text-slate-500">{r.is_official ? 'Oficial' : r.job_title ? `Adaptado · ${r.company_name ?? ''}` : 'Versão'} · {relativeTime(r.updated_at)}</p>
-                </div>
+                <Star size={16} className={r.is_official ? 'fill-amber-400 text-amber-400' : 'text-slate-300 hover:text-amber-400'} />
+              </button>
+              <button onClick={() => navigate('curriculo', { id: r.id })} className="min-w-0 flex-1 px-2 py-2.5 text-left">
+                <p className="truncate text-sm font-medium text-slate-800">{r.name}</p>
+                <p className="truncate text-xs text-slate-500">{r.is_official ? 'Oficial (base)' : r.job_title ? `Adaptado · ${r.company_name ?? ''}` : 'Versão'} · {relativeTime(r.updated_at)}</p>
               </button>
             </li>
           ))}
@@ -205,6 +213,11 @@ function ResumeWorkspace({ resume, onImport, onAutomation }: { resume: Resume; o
         <span className="text-xs text-slate-400">{status === 'salvo' ? 'Salvo' : status === 'salvando' ? 'Salvando…' : 'Alterações pendentes'}</span>
 
         <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
+          {!resume.is_official && (
+            <Button icon={<Star size={15} />} onClick={makeOfficial} title="Torna este currículo a base das adaptações">
+              Usar como oficial
+            </Button>
+          )}
           <Button variant="ai" icon={<Sparkles size={15} />} onClick={() => setTailorOpen(true)}>
             Adaptar para vaga
           </Button>
