@@ -118,6 +118,13 @@ export default function ResumePreview({ data }: { data: ResumeData }) {
           <p>{data.languages.map((l) => (l.level ? `${l.name} (${l.level})` : l.name)).join('   •   ')}</p>
         </>
       )}
+
+      {data.closing?.text.trim() && (
+        <>
+          <H>{data.closing.title.trim() || (data.lang === 'en' ? 'Professional philosophy' : 'Filosofia profissional')}</H>
+          <p className="text-justify">{data.closing.text}</p>
+        </>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Briefcase, Copy, Download, Eye, EyeOff, FilePlus2, FileText, MoreHorizontal, ScanSearch, Sparkles, Star, Trash2, Upload } from 'lucide-react';
+import { Bot, Briefcase, ClipboardCopy, Copy, Download, Eye, EyeOff, FilePlus2, FileText, MoreHorizontal, ScanSearch, Sparkles, Star, Trash2, Upload } from 'lucide-react';
 import type { MatchAnalysis, Resume, ResumeData, ResumeReview } from '../../../shared/types';
 import type { Route } from '../App';
 import { navigate } from '../App';
@@ -7,9 +7,10 @@ import MatchView from '../components/MatchView';
 import ResumeEditor from '../components/resume/ResumeEditor';
 import { ImportModal, ReviewModal, TailorModal } from '../components/resume/ResumeModals';
 import ResumePreview from '../components/resume/ResumePreview';
+import AutomationModal from '../components/resume/AutomationModal';
 import { Button, Dropdown, Empty, Input, MenuItem, Select } from '../components/ui';
 import { api } from '../lib/api';
-import { relativeTime } from '../lib/format';
+import { copyText, relativeTime } from '../lib/format';
 import { useData } from '../lib/store';
 import { useToast } from '../lib/toast';
 
@@ -17,6 +18,7 @@ export default function ResumePage({ route }: { route: Route }) {
   const { resumes, refresh } = useData();
   const [importOpen, setImportOpen] = useState<null | { targetId?: number }>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [automationOpen, setAutomationOpen] = useState(false);
 
   const official = resumes.find((r) => r.is_official);
   const selectedId = Number(route.params.get('id')) || official?.id || resumes[0]?.id || null;
@@ -67,6 +69,9 @@ export default function ResumePage({ route }: { route: Route }) {
           <Button variant="secondary" icon={<Upload size={15} />} className="w-full" onClick={() => setImportOpen({})}>
             Importar currículo
           </Button>
+          <Button variant="ai" icon={<Bot size={15} />} className="w-full" onClick={() => setAutomationOpen(true)}>
+            Automação por vaga
+          </Button>
         </div>
         <ul className="flex-1">
           {resumes.map((r) => (
@@ -87,11 +92,12 @@ export default function ResumePage({ route }: { route: Route }) {
       </aside>
 
       {selected ? (
-        <ResumeWorkspace key={`${selected.id}-${reloadKey}`} resume={selected} onImport={() => setImportOpen({ targetId: selected.id })} />
+        <ResumeWorkspace key={`${selected.id}-${reloadKey}`} resume={selected} onImport={() => setImportOpen({ targetId: selected.id })} onAutomation={() => setAutomationOpen(true)} />
       ) : (
         <Empty title="Selecione um currículo" />
       )}
 
+      {automationOpen && <AutomationModal onClose={() => setAutomationOpen(false)} />}
       {importOpen && (
         <ImportModal
           targetId={importOpen.targetId}
@@ -107,7 +113,7 @@ export default function ResumePage({ route }: { route: Route }) {
   );
 }
 
-function ResumeWorkspace({ resume, onImport }: { resume: Resume; onImport: () => void }) {
+function ResumeWorkspace({ resume, onImport, onAutomation }: { resume: Resume; onImport: () => void; onAutomation: () => void }) {
   const { refresh, jobs } = useData();
   const toast = useToast();
   const [name, setName] = useState(resume.name);
@@ -205,6 +211,9 @@ function ResumeWorkspace({ resume, onImport }: { resume: Resume; onImport: () =>
           <Button icon={<ScanSearch size={15} />} loading={reviewing} onClick={runReview}>
             Revisão IA
           </Button>
+          <Button icon={<ClipboardCopy size={15} />} onClick={async () => (await copyText(resumeToText(data))) && toast('Currículo copiado como texto', 'info')}>
+            Copiar texto
+          </Button>
           <Button icon={<Download size={15} />} onClick={() => download('pdf')}>
             PDF
           </Button>
@@ -220,6 +229,9 @@ function ResumeWorkspace({ resume, onImport }: { resume: Resume; onImport: () =>
                     Tornar oficial
                   </MenuItem>
                 )}
+                <MenuItem icon={<Bot size={15} />} onClick={() => (close(), onAutomation())}>
+                  Automação por vaga
+                </MenuItem>
                 <MenuItem icon={<Copy size={15} />} onClick={() => (close(), duplicate())}>
                   Duplicar
                 </MenuItem>
@@ -331,4 +343,24 @@ function MobileResumePicker({ currentId }: { currentId: number }) {
       ))}
     </Select>
   );
+}
+
+/** Versão em texto simples do currículo (para colar em formulários e e-mails). */
+function resumeToText(d: ResumeData): string {
+  const L = d.lang === 'en'
+    ? { summary: 'PROFESSIONAL SUMMARY', exp: 'PROFESSIONAL EXPERIENCE', projects: 'PROJECTS', skills: 'SKILLS', edu: 'EDUCATION', certs: 'CERTIFICATIONS', langs: 'LANGUAGES', current: 'Present', closing: 'PROFESSIONAL PHILOSOPHY' }
+    : { summary: 'RESUMO PROFISSIONAL', exp: 'EXPERIÊNCIA PROFISSIONAL', projects: 'PROJETOS', skills: 'HABILIDADES', edu: 'FORMAÇÃO ACADÊMICA', certs: 'CERTIFICAÇÕES', langs: 'IDIOMAS', current: 'Atual', closing: 'FILOSOFIA PROFISSIONAL' };
+  const p = d.personal;
+  const bullets = (t: string) => t.split('\n').map((l) => l.replace(/^\s*[-•*–]\s*/, '').trim()).filter(Boolean).map((l) => `• ${l}`);
+  const out: string[] = [p.name, p.headline, [p.location, p.phone, p.email, p.linkedin, p.github, p.website].filter((x) => x.trim()).join(' | ')].filter(Boolean);
+  const section = (title: string, lines: string[]) => lines.length && out.push('', title, ...lines);
+  section(L.summary, d.summary.trim() ? [d.summary.trim()] : []);
+  section(L.exp, d.experiences.flatMap((e) => [`${[e.role, e.company].filter(Boolean).join(' — ')} (${[e.start, e.current ? L.current : e.end].filter(Boolean).join(' – ')})`, ...bullets(e.description), '']));
+  section(L.projects, d.projects.flatMap((x) => [x.name + (x.link ? ` — ${x.link}` : ''), ...bullets(x.description)]));
+  section(L.skills, d.skills.map((s) => (s.category ? `${s.category}: ${s.items}` : s.items)));
+  section(L.edu, d.education.map((e) => `${[e.degree, e.institution].filter(Boolean).join(' — ')} (${[e.start, e.end].filter(Boolean).join(' – ')})`));
+  section(L.certs, d.certifications.map((c) => [c.name, c.issuer, c.year].filter(Boolean).join(' — ')));
+  section(L.langs, d.languages.length ? [d.languages.map((l) => (l.level ? `${l.name} (${l.level})` : l.name)).join(' • ')] : []);
+  if (d.closing?.text.trim()) section(d.closing.title.trim().toUpperCase() || L.closing, [d.closing.text.trim()]);
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }

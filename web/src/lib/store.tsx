@@ -47,6 +47,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(t);
   }, [refresh]);
 
+  // Enquanto houver currículo sendo adaptado em segundo plano, atualiza vagas e currículos.
+  const tailoringActive = jobs.some((j) => j.tailoring && j.tailoring.status !== 'error');
+  useEffect(() => {
+    if (!tailoringActive) return;
+    const t = setInterval(() => refresh(['jobs', 'resumes']).catch(() => {}), 4000);
+    return () => clearInterval(t);
+  }, [tailoringActive, refresh]);
+
   const upsertContact = useCallback((c: Contact) => {
     setContacts((list) => {
       const idx = list.findIndex((x) => x.id === c.id);

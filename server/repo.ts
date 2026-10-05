@@ -3,6 +3,7 @@ import { all, get, nowIso, run } from './db.ts';
 import { computeCadence, computeNextAction, deriveStage } from './followup.ts';
 import { getSettings } from './settings.ts';
 import { normalizeResume } from './resume-utils.ts';
+import { tailoringStatus } from './tailor-status.ts';
 
 // ---------- Contatos ----------
 
@@ -76,6 +77,7 @@ export async function listJobs(userId: number): Promise<Job[]> {
       ...j,
       contacts_count: related.length,
       urgent_contacts: related.filter((c) => c.nextAction.urgent).length,
+      tailoring: tailoringStatus(j.id),
     } as Job;
   });
 }

@@ -7,6 +7,7 @@ import { buildMatchPrompt } from '../prompts.ts';
 import { getJob, listJobs, ownJob, resumeForJob } from '../repo.ts';
 import { detectPlatform, scrapeJob } from '../scrape.ts';
 import { HttpError } from './errors.ts';
+import { enqueueTailoring, maybeAutoTailor } from '../tailor.ts';
 
 export const jobsRouter = Router();
 
@@ -70,6 +71,7 @@ jobsRouter.post('/', async (req, res) => {
   );
   const id = result.id!;
   await recordJobStatus(id, null, status, now);
+  await maybeAutoTailor(userId, id);
   res.status(201).json(await getJob(userId, id));
 });
 
@@ -100,6 +102,8 @@ jobsRouter.put('/:id', async (req, res) => {
   params.push(nowIso());
   await run(`UPDATE jobs SET ${sets.join(', ')} WHERE id = ?`, ...params, id);
   if (b.status && b.status !== current.status) await recordJobStatus(id, current.status, b.status);
+  // Vaga que acabou de ganhar descrição entra na adaptação automática.
+  if (!current.description?.trim() && String(b.description ?? '').trim()) await maybeAutoTailor(userId, id);
   res.json(await getJob(userId, id));
 });
 
@@ -135,4 +139,28 @@ jobsRouter.post('/:id/match', async (req, res) => {
   if (!resume) throw new HttpError(400, 'Cadastre seu currículo oficial primeiro (aba Currículo).');
   const { system, prompt } = buildMatchPrompt(resume, { title: job.title, company: job.company_name, description: job.description });
   res.json(await completeJson<MatchAnalysis>({ userId, system, prompt }));
+});
+
+/** Coloca a vaga na fila de adaptação do currículo (processada em segundo plano). */
+jobsRouter.post('/:id/tailor', async (req, res) => {
+  const userId = uid(req);
+  const job = await ownJob(userId, Number(req.params.id));
+  if (!job) throw new HttpError(404, 'Vaga não encontrada');
+  if (!job.description?.trim()) throw new HttpError(400, 'A vaga não tem descrição — busque pelo link ou cole a descrição.');
+  enqueueTailoring(userId, [job.id]);
+  res.status(202).json(await getJob(userId, job.id));
+});
+
+/** Adapta todas as vagas com descrição que ainda não têm currículo adaptado. */
+jobsRouter.post('/tailor-pending', async (req, res) => {
+  const userId = uid(req);
+  const rows = await all<{ id: number }>(
+    `SELECT j.id FROM jobs j
+     WHERE j.user_id = ? AND coalesce(j.description, '') <> '' AND j.status <> 'encerrado'
+       AND NOT EXISTS (SELECT 1 FROM resumes r WHERE r.job_id = j.id)
+     ORDER BY j.created_at DESC`,
+    userId,
+  );
+  enqueueTailoring(userId, rows.map((r) => r.id));
+  res.status(202).json({ queued: rows.length });
 });

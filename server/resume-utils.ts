@@ -12,6 +12,7 @@ export function emptyResume(): ResumeData {
     languages: [],
     certifications: [],
     projects: [],
+    closing: { title: '', text: '' },
   };
 }
 
@@ -63,6 +64,7 @@ export function normalizeResume(input: any): ResumeData {
       link: str(x?.link),
       description: str(x?.description),
     })),
+    closing: { title: str(input?.closing?.title), text: str(input?.closing?.text) },
   };
 }
 

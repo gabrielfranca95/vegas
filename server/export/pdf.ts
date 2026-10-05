@@ -136,6 +136,11 @@ export function resumeToPdf(r: ResumeData): Promise<Buffer> {
     doc.font('Helvetica').fontSize(9.8).fillColor(COLORS.text).text(t(r.languages.map((l) => (l.level ? `${l.name} (${l.level})` : l.name)).join('   •   ')), left, doc.y, { width });
   }
 
+  if (r.closing.text.trim()) {
+    section(r.closing.title.trim() || (r.lang === 'en' ? 'Professional philosophy' : 'Filosofia profissional'));
+    paragraph(r.closing.text);
+  }
+
   doc.end();
   return done;
 }

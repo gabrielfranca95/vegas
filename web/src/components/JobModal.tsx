@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, FileText, Gauge, Gift, Mail, Plus, Sparkles, Trash2, UserRound } from 'lucide-react';
+import { ExternalLink, FileText, Gauge, Gift, Loader2, Mail, Plus, Sparkles, Trash2, UserRound } from 'lucide-react';
 import type { Job, MatchAnalysis } from '../../../shared/types';
 import { CONTACT_STAGES, ROLE_CATEGORIES } from '../../../shared/types';
 import { navigate } from '../App';
@@ -196,13 +196,21 @@ export default function JobModal({ job, onClose }: { job: Job; onClose: () => vo
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <Button variant="ai" icon={<Sparkles size={16} />} loading={tailoring} onClick={tailor}>
-              Gerar currículo adaptado para esta vaga
+              {jobResumes.length ? 'Adaptar de novo (atualiza a versão)' : 'Gerar currículo adaptado para esta vaga'}
             </Button>
             <Button icon={<Gauge size={16} />} loading={matching} onClick={runMatch}>
               Analisar aderência
             </Button>
           </div>
           {!form.description && <p className="text-sm text-amber-700">Essa vaga ainda não tem descrição — preencha na aba Detalhes para a IA conseguir trabalhar.</p>}
+          {job.tailoring && job.tailoring.status !== 'error' && (
+            <p className="flex items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-800">
+              <Loader2 size={15} className="animate-spin" /> {job.tailoring.status === 'queued' ? 'Na fila para adaptar o currículo…' : 'Adaptando o currículo automaticamente…'}
+            </p>
+          )}
+          {job.tailoring?.status === 'error' && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">Adaptação automática falhou: {job.tailoring.error}</p>
+          )}
           <MatchView match={match} changes={changes} />
           {jobResumes.length > 0 && (
             <div>

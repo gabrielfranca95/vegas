@@ -343,6 +343,22 @@ export default function ResumeEditor({ resumeId, data, onChange }: { resumeId: n
           </div>
         </Section>
       </div>
+      <Section title="Texto final (opcional)">
+        <div className="space-y-2">
+          <Input
+            value={data.closing?.title ?? ''}
+            onChange={(e) => onChange({ ...data, closing: { title: e.target.value, text: data.closing?.text ?? '' } })}
+            placeholder="Título (ex.: Filosofia profissional)"
+          />
+          <Textarea
+            rows={3}
+            autoGrow
+            value={data.closing?.text ?? ''}
+            onChange={(e) => onChange({ ...data, closing: { title: data.closing?.title ?? '', text: e.target.value } })}
+            placeholder="Texto que fecha o currículo (aparece no final do PDF/Word)"
+          />
+        </div>
+      </Section>
     </div>
   );
 }

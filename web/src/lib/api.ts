@@ -96,6 +96,8 @@ export const api = {
     reorder: (status: string, ids: number[]) => post<Job[]>('/jobs/reorder', { status, ids }),
     remove: (id: number) => del(`/jobs/${id}`),
     match: (id: number) => post<MatchAnalysis>(`/jobs/${id}/match`),
+    tailor: (id: number) => post<Job>(`/jobs/${id}/tailor`),
+    tailorPending: () => post<{ queued: number }>('/jobs/tailor-pending'),
   },
   contacts: {
     list: () => get<Contact[]>('/contacts'),

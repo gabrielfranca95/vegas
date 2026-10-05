@@ -119,6 +119,12 @@ export interface Settings {
     /** Meta de referência: quantas interações completas por proposta. */
     interactionsPerOffer: number;
   };
+  resumeAutomation: {
+    /** Instruções do candidato para adaptar o currículo base a cada vaga. */
+    instructions: string;
+    /** Adapta automaticamente quando uma vaga com descrição entra no quadro. */
+    autoOnNewJob: boolean;
+  };
   followup: {
     inviteStaleDays: number;
     days: number[];
@@ -162,6 +168,8 @@ export interface Job {
   contacts_count: number;
   urgent_contacts: number;
   resumes_count: number;
+  /** Adaptação automática do currículo em andamento ou com erro (null quando não há). */
+  tailoring: { status: 'queued' | 'running' | 'error'; error: string | null } | null;
 }
 
 export interface ContactEvent {
@@ -340,6 +348,8 @@ export interface ResumeData {
   languages: ResumeLanguage[];
   certifications: ResumeCertification[];
   projects: ResumeProject[];
+  /** Texto de fechamento opcional (ex.: "Filosofia profissional"). */
+  closing: { title: string; text: string };
 }
 
 export interface Resume {

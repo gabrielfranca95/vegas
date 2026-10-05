@@ -1,5 +1,5 @@
 import { useMemo, useState, type DragEvent } from 'react';
-import { BellRing, FileText, MapPin, Plus, Search, Users } from 'lucide-react';
+import { AlertTriangle, BellRing, FileText, Loader2, MapPin, Plus, Search, Users } from 'lucide-react';
 import type { Job } from '../../../shared/types';
 import type { Route } from '../App';
 import { navigate } from '../App';
@@ -174,10 +174,20 @@ function JobCard({
         <span className="flex items-center gap-1" title="Pessoas dessa empresa/vaga">
           <Users size={13} /> {job.contacts_count}
         </span>
-        {job.resumes_count > 0 && (
-          <span className="flex items-center gap-1" title="Currículos adaptados">
-            <FileText size={13} /> {job.resumes_count}
+        {job.tailoring && job.tailoring.status !== 'error' ? (
+          <span className="flex items-center gap-1 text-violet-600" title="Adaptando o currículo para esta vaga">
+            <Loader2 size={13} className="animate-spin" /> CV
           </span>
+        ) : job.tailoring?.status === 'error' ? (
+          <span className="flex items-center gap-1 text-amber-600" title={`Adaptação falhou: ${job.tailoring.error ?? ''}`}>
+            <AlertTriangle size={13} /> CV
+          </span>
+        ) : (
+          job.resumes_count > 0 && (
+            <span className="flex items-center gap-1 text-emerald-600" title="Currículo adaptado pronto">
+              <FileText size={13} /> CV
+            </span>
+          )
         )}
         {job.urgent_contacts > 0 && (
           <span className="flex items-center gap-1 font-semibold text-red-600" title="Pessoas com ação pendente (follow-up, resposta…)">

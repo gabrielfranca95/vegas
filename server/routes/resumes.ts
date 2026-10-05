@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import mammoth from 'mammoth';
 import { extractText, getDocumentProxy } from 'unpdf';
-import type { MatchAnalysis, ResumeAIAction, ResumeData, ResumeReview } from '../../shared/types.ts';
-import { completeJson } from '../ai.ts';
+import type { ResumeAIAction, ResumeData, ResumeReview } from '../../shared/types.ts';
+import { AIError, completeJson } from '../ai.ts';
+import { tailorForJob } from '../tailor.ts';
 import { uid } from '../auth.ts';
 import { findOrCreateCompany, get, nowIso, recordJobStatus, run } from '../db.ts';
 import { resumeToDocx } from '../export/docx.ts';
 import { resumeToPdf } from '../export/pdf.ts';
-import { buildParsePrompt, buildReviewPrompt, buildSectionPrompt, buildTailorPrompt } from '../prompts.ts';
+import { buildParsePrompt, buildReviewPrompt, buildSectionPrompt } from '../prompts.ts';
 import { createResume, getJob, getResume, listResumes, ownJob } from '../repo.ts';
 import { emptyResume, normalizeResume, safeFileName } from '../resume-utils.ts';
 import { detectPlatform, scrapeJob } from '../scrape.ts';
@@ -158,19 +159,14 @@ resumesRouter.post('/:id/tailor', async (req, res) => {
     job = { id, title: data.title, company: data.company || null, description: data.description };
   }
 
-  const { system, prompt } = buildTailorPrompt(base.data, job);
-  const out = await completeJson<{ resume: unknown; changes?: string[]; match?: MatchAnalysis }>({ userId, system, prompt, maxTokens: 16000 });
-  if (!out.resume) throw new HttpError(502, 'A IA não retornou o currículo adaptado. Tente novamente.');
-
-  const name = `${job.company ?? 'Vaga'} · ${job.title}`.slice(0, 120);
-  const notes = [
-    out.match ? `Aderência estimada: ${out.match.score}%` : '',
-    out.changes?.length ? `Mudanças:\n- ${out.changes.join('\n- ')}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-  const created = await createResume(userId, name, normalizeResume(out.resume), { official: false, jobId: job.id, notes });
-  res.status(201).json({ resume: created, changes: out.changes ?? [], match: out.match ?? null, jobId: job.id });
+  let result;
+  try {
+    result = await tailorForJob(userId, job.id, base.id);
+  } catch (err) {
+    if (err instanceof AIError) throw err;
+    throw new HttpError(400, (err as Error).message);
+  }
+  res.status(201).json({ ...result, jobId: job.id });
 });
 
 /** Importa um currículo (texto colado, PDF ou DOCX em base64) e estrutura com IA. */

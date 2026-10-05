@@ -120,6 +120,11 @@ export async function resumeToDocx(r: ResumeData): Promise<Buffer> {
     );
   }
 
+  if (r.closing.text.trim()) {
+    children.push(heading(r.closing.title.trim() || (r.lang === 'en' ? 'Professional philosophy' : 'Filosofia profissional')));
+    children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, children: [new TextRun({ text: r.closing.text, size: 20, font: FONT })] }));
+  }
+
   const doc = new Document({
     creator: p.name || 'Vagas CRM',
     title: p.name,
