@@ -163,6 +163,8 @@ export async function completeWithModel(o: CompleteOptions): Promise<CompletionR
       return { text, model, failed };
     } catch (err) {
       if (!(err instanceof AIError) || !err.retryable) throw err;
+      // Só modelo e motivo no log (nunca a chave nem o conteúdo), para diagnosticar cota x sobrecarga.
+      console.warn(`[ia] ${provider} falhou: ${err.message}`);
       failed.push(err.message);
     }
   }
