@@ -188,6 +188,15 @@ await driver.exec(`
     updated_at   TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS job_chats (
+    id         SERIAL PRIMARY KEY,
+    job_id     INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_job_chats_job ON job_chats(job_id, id);
+
   CREATE INDEX IF NOT EXISTS idx_events_contact ON contact_events(contact_id, occurred_at);
   CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
   CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id);

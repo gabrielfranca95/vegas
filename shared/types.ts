@@ -172,6 +172,8 @@ export interface Job {
   contacts_count: number;
   urgent_contacts: number;
   resumes_count: number;
+  /** Currículo adaptado mais recente desta vaga. */
+  tailored_resume_id: number | null;
   /** Adaptação automática do currículo em andamento ou com erro (null quando não há). */
   tailoring: { status: 'queued' | 'running' | 'error'; error: string | null } | null;
 }
@@ -506,4 +508,13 @@ export interface Indicators {
     withoutEV: { contacts: number; replied: number; rate: number | null };
   };
   metrics: Metrics;
+}
+
+// ---------- Assistente de candidatura (chat por vaga) ----------
+
+export interface JobChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
 }

@@ -7,17 +7,19 @@ import { api } from '../lib/api';
 import { formatDate, relativeTime } from '../lib/format';
 import { useData } from '../lib/store';
 import { useToast } from '../lib/toast';
+import ApplicationChat from './ApplicationChat';
 import ContactForm from './ContactForm';
 import JobFields, { type JobFormState } from './JobFields';
 import MatchView from './MatchView';
 import { Badge, Button, Empty, Modal } from './ui';
 
-type Tab = 'detalhes' | 'pessoas' | 'curriculo';
+export type JobModalTab = 'detalhes' | 'pessoas' | 'curriculo' | 'candidatura';
+type Tab = JobModalTab;
 
-export default function JobModal({ job, onClose }: { job: Job; onClose: () => void }) {
+export default function JobModal({ job, onClose, initialTab = 'detalhes' }: { job: Job; onClose: () => void; initialTab?: JobModalTab }) {
   const { contacts, resumes, refresh } = useData();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>('detalhes');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [form, setForm] = useState<JobFormState>({
     title: job.title,
     company: job.company_name ?? '',
@@ -96,6 +98,7 @@ export default function JobModal({ job, onClose }: { job: Job; onClose: () => vo
     { key: 'detalhes', label: 'Detalhes' },
     { key: 'pessoas', label: `Pessoas (${related.length})` },
     { key: 'curriculo', label: `Currículo & aderência (${jobResumes.length})` },
+    { key: 'candidatura', label: 'Candidatura (perguntas e carta)' },
   ];
 
   return (
@@ -150,6 +153,8 @@ export default function JobModal({ job, onClose }: { job: Job; onClose: () => vo
       </div>
 
       {tab === 'detalhes' && <JobFields form={form} onChange={setForm} />}
+
+      {tab === 'candidatura' && <ApplicationChat job={job} />}
 
       {tab === 'pessoas' && (
         <div>

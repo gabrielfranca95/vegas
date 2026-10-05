@@ -62,7 +62,8 @@ export async function refreshContactStage(contactId: number) {
 export async function listJobs(userId: number): Promise<Job[]> {
   const rows = await all<any>(
     `SELECT j.*, co.name AS company_name,
-      (SELECT COUNT(*)::int FROM resumes r WHERE r.job_id = j.id) AS resumes_count
+      (SELECT COUNT(*)::int FROM resumes r WHERE r.job_id = j.id) AS resumes_count,
+      (SELECT r.id FROM resumes r WHERE r.job_id = j.id ORDER BY r.updated_at DESC LIMIT 1) AS tailored_resume_id
     FROM jobs j
     LEFT JOIN companies co ON co.id = j.company_id
     WHERE j.user_id = ?

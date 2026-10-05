@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import type { MatchAnalysis } from '../../shared/types.ts';
-import { completeJson } from '../ai.ts';
+import { completeJson, completeWithModel } from '../ai.ts';
 import { uid } from '../auth.ts';
 import { all, findOrCreateCompany, get, nowIso, recordJobStatus, run } from '../db.ts';
-import { buildMatchPrompt } from '../prompts.ts';
+import { buildApplicationChatPrompt, buildMatchPrompt } from '../prompts.ts';
 import { getJob, listJobs, ownJob, resumeForJob } from '../repo.ts';
+import { getSettings } from '../settings.ts';
 import { detectPlatform, scrapeJob } from '../scrape.ts';
 import { HttpError } from './errors.ts';
 import { enqueueTailoring, maybeAutoTailor } from '../tailor.ts';
@@ -163,4 +164,48 @@ jobsRouter.post('/tailor-pending', async (req, res) => {
   );
   enqueueTailoring(userId, rows.map((r) => r.id));
   res.status(202).json({ queued: rows.length });
+});
+
+// ---------- Assistente de candidatura (chat por vaga) ----------
+
+jobsRouter.get('/:id/chat', async (req, res) => {
+  const job = await ownJob(uid(req), Number(req.params.id));
+  if (!job) throw new HttpError(404, 'Vaga não encontrada');
+  res.json(await all('SELECT id, role, content, created_at FROM job_chats WHERE job_id = ? ORDER BY id', job.id));
+});
+
+jobsRouter.post('/:id/chat', async (req, res) => {
+  const userId = uid(req);
+  const job = await ownJob(userId, Number(req.params.id));
+  if (!job) throw new HttpError(404, 'Vaga não encontrada');
+  const message = String(req.body?.message ?? '').trim();
+  if (!message) throw new HttpError(400, 'Escreva a pergunta ou o pedido.');
+
+  const history = await all<{ role: 'user' | 'assistant'; content: string }>('SELECT role, content FROM job_chats WHERE job_id = ? ORDER BY id', job.id);
+  const { system, prompt } = buildApplicationChatPrompt({
+    settings: await getSettings(userId),
+    job: { ...job, company: job.company_name },
+    resume: await resumeForJob(userId, job.id),
+    history,
+    message,
+  });
+  const r = await completeWithModel({ userId, system, prompt, maxTokens: 6000 });
+  const answer = r.text.trim();
+  if (!answer) throw new HttpError(502, 'A IA não retornou resposta. Tente novamente.');
+
+  const now = nowIso();
+  await run('INSERT INTO job_chats (job_id, role, content, created_at) VALUES (?, ?, ?, ?)', job.id, 'user', message, now);
+  await run('INSERT INTO job_chats (job_id, role, content, created_at) VALUES (?, ?, ?, ?)', job.id, 'assistant', answer, nowIso());
+  res.json({
+    messages: await all('SELECT id, role, content, created_at FROM job_chats WHERE job_id = ? ORDER BY id', job.id),
+    model: r.model,
+    failed: r.failed,
+  });
+});
+
+jobsRouter.delete('/:id/chat', async (req, res) => {
+  const job = await ownJob(uid(req), Number(req.params.id));
+  if (!job) throw new HttpError(404, 'Vaga não encontrada');
+  await run('DELETE FROM job_chats WHERE job_id = ?', job.id);
+  res.status(204).end();
 });

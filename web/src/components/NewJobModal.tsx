@@ -17,6 +17,8 @@ export default function NewJobModal({ onClose }: { onClose: () => void }) {
   const [warning, setWarning] = useState<string | null>(null);
   const [existingId, setExistingId] = useState<number | null>(null);
   const [fetched, setFetched] = useState(false);
+  const autoOn = settings?.resumeAutomation.autoOnNewJob ?? false;
+  const [genCV, setGenCV] = useState(true);
 
   const scrape = async () => {
     if (!url.trim()) return;
@@ -50,8 +52,10 @@ export default function NewJobModal({ onClose }: { onClose: () => void }) {
     setSaving(true);
     try {
       const job = await api.jobs.create({ ...form, url: form.url || url || null });
+      // Com a automação ligada o servidor já enfileira; sem ela, gera se a opção estiver marcada.
+      if (!autoOn && genCV && form.description.trim()) await api.jobs.tailor(job.id).catch(() => {});
       await refresh(['jobs', 'companies']);
-      toast('Vaga adicionada ao quadro');
+      toast(form.description.trim() && (autoOn || genCV) ? 'Vaga adicionada — gerando o currículo adaptado…' : 'Vaga adicionada ao quadro');
       onClose();
       navigate('vagas', { job: job.id });
     } catch (e) {
@@ -69,6 +73,12 @@ export default function NewJobModal({ onClose }: { onClose: () => void }) {
       width="max-w-3xl"
       footer={
         <>
+          {!autoOn && (
+            <label className="mr-auto flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={genCV} onChange={(e) => setGenCV(e.target.checked)} className="size-4 accent-indigo-600" />
+              Gerar currículo adaptado
+            </label>
+          )}
           <Button onClick={onClose}>Cancelar</Button>
           <Button variant="primary" loading={saving} onClick={save}>
             Adicionar ao quadro

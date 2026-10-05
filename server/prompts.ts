@@ -323,3 +323,43 @@ export function buildProfilePrompt(text: string) {
   ].join('\n');
   return { system, prompt: `## Texto do perfil\n${text.slice(0, 15000)}` };
 }
+
+// ---------- Assistente de candidatura ----------
+
+export function buildApplicationChatPrompt(input: {
+  settings: Settings;
+  job: { title: string; company: string | null; description: string | null; location: string | null; work_model: string | null };
+  resume: ResumeData | null;
+  history: { role: 'user' | 'assistant'; content: string }[];
+  message: string;
+}) {
+  const s = input.settings;
+  const system = [
+    'Você é o assistente de candidatura do candidato. Escreve respostas prontas para colar em formulários de vagas, cartas de apresentação e e-mails para recrutadores, em português do Brasil (ou no idioma da pergunta/vaga).',
+    'Escreva na primeira pessoa, como o próprio candidato, com tom profissional, natural e direto. Texto puro pronto para colar: sem títulos em Markdown, sem asteriscos, sem comentários seus antes ou depois.',
+    'Conecte as respostas aos requisitos da vaga e use exemplos concretos do currículo (método STAR quando for pergunta comportamental: situação, tarefa, ação, resultado).',
+    'Se vierem várias perguntas, responda cada uma em sequência, repetindo a pergunta numerada antes da resposta.',
+    'Carta de apresentação: 3 a 4 parágrafos curtos (abertura com o interesse na vaga, 1-2 parágrafos de fit com resultados do currículo, fechamento com disponibilidade), sem cabeçalho de endereço.',
+    'Veracidade: use só fatos do currículo, das instruções do candidato e da conversa. Se a pergunta depende de algo que você não sabe (pretensão salarial, disponibilidade, data de início, documentos), não invente: pergunte isso ao candidato em uma frase curta e, se fizer sentido, já mostre como a resposta ficaria.',
+    'Se o candidato pedir ajuste ("mais curto", "mais formal", "em inglês"), reescreva a última resposta.',
+  ].join('\n');
+
+  const history = input.history
+    .slice(-12)
+    .map((m) => `${m.role === 'user' ? 'CANDIDATO' : 'VOCÊ'}: ${m.content}`)
+    .join('\n\n');
+
+  const j = input.job;
+  const prompt = [
+    `## Vaga\nCargo: ${j.title}\nEmpresa: ${j.company ?? ''}${j.location ? `\nLocal: ${j.location}` : ''}${j.work_model ? `\nModelo: ${j.work_model}` : ''}\n\n${(j.description ?? '(sem descrição)').slice(0, 6000)}`,
+    input.resume ? `## Currículo do candidato (adaptado para esta vaga, quando existir)\n${resumeToText(input.resume)}` : '## Currículo\n(não cadastrado)',
+    `## Sobre o candidato\nNome: ${s.profile.name || input.resume?.personal.name || ''}\nPitch: ${s.profile.pitch}\nCargos-alvo: ${s.profile.targetRoles}`,
+    s.resumeAutomation.instructions.trim() ? `## Instruções/fatos declarados pelo candidato\n${s.resumeAutomation.instructions.trim().slice(0, 4000)}` : '',
+    history ? `## Conversa até aqui\n${history}` : '',
+    `## Nova mensagem do candidato\n${input.message}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  return { system, prompt };
+}

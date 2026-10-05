@@ -21,6 +21,7 @@ import type {
   EVStatus,
   Indicators,
   ProfileData,
+  JobChatMessage,
 } from '../../../shared/types';
 
 /** Disparado quando a sessão expira, para o app voltar à tela de login. */
@@ -98,6 +99,9 @@ export const api = {
     match: (id: number) => post<MatchAnalysis>(`/jobs/${id}/match`),
     tailor: (id: number) => post<Job>(`/jobs/${id}/tailor`),
     tailorPending: () => post<{ queued: number }>('/jobs/tailor-pending'),
+    chat: (id: number) => get<JobChatMessage[]>(`/jobs/${id}/chat`),
+    sendChat: (id: number, message: string) => post<{ messages: JobChatMessage[]; model: string; failed: string[] }>(`/jobs/${id}/chat`, { message }),
+    clearChat: (id: number) => del(`/jobs/${id}/chat`),
   },
   contacts: {
     list: () => get<Contact[]>('/contacts'),

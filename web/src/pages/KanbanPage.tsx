@@ -1,9 +1,9 @@
 import { useMemo, useState, type DragEvent } from 'react';
-import { AlertTriangle, BellRing, FileText, Loader2, MapPin, Plus, Search, Users } from 'lucide-react';
+import { AlertTriangle, BellRing, Download, Loader2, MapPin, MessageSquareText, Plus, RefreshCw, Search, Sparkles, Users } from 'lucide-react';
 import type { Job } from '../../../shared/types';
 import type { Route } from '../App';
 import { navigate } from '../App';
-import JobModal from '../components/JobModal';
+import JobModal, { type JobModalTab } from '../components/JobModal';
 import NewJobModal from '../components/NewJobModal';
 import { Badge, Button, Input, PLATFORM_COLORS } from '../components/ui';
 import { api } from '../lib/api';
@@ -127,7 +127,9 @@ export default function KanbanPage({ route }: { route: Route }) {
       </div>
 
       {newOpen && <NewJobModal onClose={() => setNewOpen(false)} />}
-      {openJob && <JobModal key={openJob.id} job={openJob} onClose={() => navigate('vagas')} />}
+      {openJob && (
+        <JobModal key={openJob.id} job={openJob} initialTab={(route.params.get('tab') as JobModalTab) || 'detalhes'} onClose={() => navigate('vagas')} />
+      )}
     </div>
   );
 }
@@ -174,21 +176,6 @@ function JobCard({
         <span className="flex items-center gap-1" title="Pessoas dessa empresa/vaga">
           <Users size={13} /> {job.contacts_count}
         </span>
-        {job.tailoring && job.tailoring.status !== 'error' ? (
-          <span className="flex items-center gap-1 text-violet-600" title="Adaptando o currículo para esta vaga">
-            <Loader2 size={13} className="animate-spin" /> CV
-          </span>
-        ) : job.tailoring?.status === 'error' ? (
-          <span className="flex items-center gap-1 text-amber-600" title={`Adaptação falhou: ${job.tailoring.error ?? ''}`}>
-            <AlertTriangle size={13} /> CV
-          </span>
-        ) : (
-          job.resumes_count > 0 && (
-            <span className="flex items-center gap-1 text-emerald-600" title="Currículo adaptado pronto">
-              <FileText size={13} /> CV
-            </span>
-          )
-        )}
         {job.urgent_contacts > 0 && (
           <span className="flex items-center gap-1 font-semibold text-red-600" title="Pessoas com ação pendente (follow-up, resposta…)">
             <BellRing size={13} /> {job.urgent_contacts}
@@ -196,6 +183,74 @@ function JobCard({
         )}
         <span className="ml-auto">{relativeTime(job.created_at)}</span>
       </div>
+      <CardActions job={job} />
     </article>
+  );
+}
+
+/** Ações rápidas do card: gerar/baixar o currículo adaptado e abrir o assistente de candidatura. */
+function CardActions({ job }: { job: Job }) {
+  const { refresh } = useData();
+  const toast = useToast();
+  const [starting, setStarting] = useState(false);
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const busy = starting || (job.tailoring && job.tailoring.status !== 'error');
+
+  const generate = async (e: React.MouseEvent) => {
+    stop(e);
+    if (!job.description) {
+      toast('Essa vaga não tem descrição. Abra o card e busque/cole a descrição primeiro.', 'error');
+      return;
+    }
+    setStarting(true);
+    try {
+      await api.jobs.tailor(job.id);
+      await refresh(['jobs']);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const btn = 'flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition';
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2" onMouseDown={stop}>
+      {busy ? (
+        <span className={`${btn} bg-violet-50 text-violet-700`}>
+          <Loader2 size={12} className="animate-spin" /> {job.tailoring?.status === 'queued' ? 'Na fila…' : 'Gerando CV…'}
+        </span>
+      ) : job.tailored_resume_id ? (
+        <>
+          <a href={api.resumes.exportUrl(job.tailored_resume_id, 'pdf')} onClick={stop} className={`${btn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Baixar o currículo adaptado (PDF)">
+            <Download size={12} /> CV PDF
+          </a>
+          <a href={api.resumes.exportUrl(job.tailored_resume_id, 'docx')} onClick={stop} className={`${btn} text-slate-500 hover:bg-slate-100`} title="Baixar em Word">
+            Word
+          </a>
+          <button onClick={generate} className={`${btn} text-slate-400 hover:bg-slate-100 hover:text-slate-600`} title="Adaptar de novo">
+            <RefreshCw size={11} />
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={generate}
+          className={`${btn} ${job.tailoring?.status === 'error' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-violet-600 text-white hover:bg-violet-700'}`}
+          title={job.tailoring?.status === 'error' ? `Falhou: ${job.tailoring.error ?? ''} — clique para tentar de novo` : 'Gerar currículo adaptado para esta vaga'}
+        >
+          {job.tailoring?.status === 'error' ? <AlertTriangle size={12} /> : <Sparkles size={12} />} {job.tailoring?.status === 'error' ? 'Tentar de novo' : 'Gerar CV'}
+        </button>
+      )}
+      <button
+        onClick={(e) => {
+          stop(e);
+          navigate('vagas', { job: job.id, tab: 'candidatura' });
+        }}
+        className={`${btn} ml-auto text-indigo-700 hover:bg-indigo-50`}
+        title="Perguntas do formulário e carta de apresentação"
+      >
+        <MessageSquareText size={12} /> Candidatura
+      </button>
+    </div>
   );
 }
