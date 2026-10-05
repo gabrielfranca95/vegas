@@ -84,8 +84,8 @@ export type MessageKind = 'invite_note' | 'first_message' | 'ev_delivery' | 'fol
 
 export const MESSAGE_KINDS: { key: MessageKind; label: string }[] = [
   { key: 'invite_note', label: 'Nota do convite de conexão' },
-  { key: 'first_message', label: 'Primeira mensagem (após aceitar)' },
-  { key: 'ev_delivery', label: 'Entrega de Valor (EV)' },
+  { key: 'first_message', label: '1ª mensagem (entrega de valor)' },
+  { key: 'ev_delivery', label: 'Entrega de um EV específico' },
   { key: 'followup', label: 'Follow-up' },
   { key: 'reply', label: 'Responder a mensagem dele(a)' },
   { key: 'direct', label: 'Mensagem direta (InMail / e-mail)' },
@@ -114,6 +114,8 @@ export interface Settings {
   };
   /** Diretrizes de influência aplicadas a todas as mensagens (postura, STAR, reciprocidade…). */
   strategy: string;
+  /** Abordagens reais que funcionaram, usadas como referência de tom e estrutura. */
+  examples: string;
   approach: Record<RoleCategory, string>;
   goal: {
     /** Meta de referência: quantas interações completas por proposta. */

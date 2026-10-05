@@ -27,19 +27,23 @@ export function resumeToText(r: ResumeData, opts: { compact?: boolean } = {}): s
 
 // ---------- Mensagens ----------
 
-const KIND_INSTRUCTIONS: Record<MessageKind, (limit: number) => string> = {
+const KIND_INSTRUCTIONS: Record<MessageKind, (limit: number, hasEv: boolean) => string> = {
   invite_note: (limit) =>
-    `Escreva a NOTA do convite de conexão do LinkedIn. Limite RÍGIDO de ${limit} caracteres (contando espaços). Sem saudação longa, sem assinatura. Deve dar um motivo claro para aceitar.`,
-  first_message: () =>
-    'A pessoa ACABOU de aceitar o convite de conexão. Escreva a primeira mensagem após a conexão: agradeça brevemente, contextualize o motivo do contato com postura de protagonista (um mini-STAR de 1 frase com resultado real do currículo) e termine com uma pergunta simples e fácil de responder. Máximo ~600 caracteres.',
+    `Escreva a NOTA do convite de conexão do LinkedIn. Limite RÍGIDO de ${limit} caracteres (contando espaços). Estrutura: "Olá, <nome>." + quem o candidato é (cargo + especialização real) + um elemento ESPECÍFICO da empresa (iniciativa/produto/área real do contexto) + motivo para conectar (para recrutador/RH: está mapeando o próximo desafio na área). Sem pedir vaga ou CV, sem "admiro o trabalho".`,
+  first_message: (_l, hasEv) =>
+    `A pessoa aceitou o convite (ou já era conexão). Escreva a 1ª mensagem seguindo a estrutura do exemplo que FUNCIONOU: (1) "Olá, <nome>. Tudo bem?"; (2) quem o candidato é + intenção clara para recrutador/RH ("ao mapear o mercado para o meu próximo desafio profissional focado em <área>") ou interesse genuíno para os demais perfis; (3) por que ESTA empresa: cite pelo nome 1-2 iniciativas/frentes reais do contexto; (4) ponte com a atuação do candidato nos mesmos setores/desafios; (5) ${
+      hasEv
+        ? 'apresente o material anexo (EV) dizendo concretamente o que ele aborda, com 1-2 resultados reais do currículo (números quando existirem)'
+        : 'traga na própria mensagem 1-2 resultados reais do currículo (números quando existirem) ligados aos desafios da empresa'
+    }; (6) uma frase de sinergia; (7) fechamento: "Fico à disposição para trocarmos ideias e explorarmos possíveis oportunidades de colaboração no time." Sem "novamente", sem pedir CV/vaga. Entre 550 e 900 caracteres, em 4-5 parágrafos curtos.`,
   ev_delivery: () =>
-    'Escreva a mensagem que ENTREGA a Entrega de Valor (EV) descrita abaixo. Apresente o material como uma contribuição espontânea e específica para a pessoa/empresa (o que é, por que é útil para ELA, 1 destaque concreto do conteúdo), sem cobrar nada em troca nesta mensagem. Termine com uma pergunta leve que convide a pessoa a reagir (ex.: se faz sentido para o time, se ela vê esse desafio por lá). Se o EV for um arquivo (PDF), diga que está anexo/segue em anexo. Máximo ~700 caracteres.',
+    'Escreva a mensagem que ENTREGA o material (EV) abaixo: contexto específico da empresa (iniciativa real citada pelo nome), o que o material aborda concretamente com 1-2 resultados reais do candidato, ligação com os desafios da empresa e fechamento abrindo para trocar ideias e explorar oportunidades de colaboração. Sem pedir CV/vaga. Máximo ~800 caracteres.',
   followup: () =>
-    'A pessoa ainda não respondeu à mensagem anterior. Escreva um follow-up curto e educado (máximo ~350 caracteres), sem soar cobrança e sem repetir a mensagem anterior; traga um elemento novo (um dado, um interesse específico ou uma pergunta mais fácil).',
+    'A pessoa ainda não respondeu. Escreva um follow-up de 1-3 frases que NÃO diga "retomando"/"passando para lembrar" e NÃO repita a mensagem anterior: "Olá <nome>, espero que esteja bem." + UMA pergunta curta, fácil e dentro da área de quem recebe, ligada ao perfil/time (para recrutador: quais características considera essenciais no perfil de <cargo do candidato> na <empresa>) + uma frase curta de apreço. Proibido pergunta abstrata sobre futuro da tecnologia/mercado.',
   reply: () =>
-    'A pessoa respondeu. Escreva a resposta para dar continuidade à conversa de forma natural, respondendo ao que ela disse e conduzindo para o próximo passo (processo seletivo, conversa rápida, envio de currículo ou indicação, conforme fizer sentido).',
+    'A pessoa respondeu (veja a última mensagem dela no histórico). Responda como numa conversa real: primeiro o cumprimento, se houve ("Olá <nome>, estou bem, e você como está?"); depois responda EXATAMENTE o que ela perguntou, curto e direto, com prova concreta do currículo quando couber. Se ela pediu pretensão salarial e a senioridade/escopo não está claro, pergunte isso antes ("Qual o nível de senioridade da vaga? Com base nisso consigo pensar na minha faixa com mais equilíbrio"). Se pediu contato, e-mail ou horário, confirme de forma objetiva. Deixe ela conduzir. Pode separar em 2 mensagens curtas na mesma variação, com uma linha em branco entre elas.',
   direct: () =>
-    'Escreva uma mensagem direta (InMail/e-mail/mensagem sem conexão prévia). Inclua um assunto curto na primeira linha no formato "Assunto: ...". Corpo com no máximo ~700 caracteres.',
+    'Escreva uma mensagem direta (InMail/e-mail, sem conexão prévia) com a mesma estrutura da 1ª mensagem que funcionou (intenção clara, iniciativas reais da empresa pelo nome, resultados concretos do candidato, fechamento abrindo para oportunidades de colaboração). Primeira linha "Assunto: ..." curta e específica. Máximo ~900 caracteres.',
 };
 
 export interface MessagePromptInput {
@@ -52,6 +56,10 @@ export interface MessagePromptInput {
   resume: ResumeData | null;
   instruction?: string;
   ev?: { kind: EVKind; title: string; summary: string | null; content: string } | null;
+  /** Texto público do site da empresa (contexto para citar iniciativas reais). */
+  companySiteText?: string | null;
+  /** Mensagem já enviada a outra pessoa da mesma empresa (para não repetir). */
+  sameCompanyMessage?: { name: string; content: string } | null;
 }
 
 const evKindLabel = (k: EVKind) => EV_KINDS.find((x) => x.key === k)?.label ?? k;
@@ -63,12 +71,17 @@ export function buildMessagePrompt(i: MessagePromptInput) {
 
   const system = [
     'Você é um especialista em recrutamento e networking no LinkedIn no mercado brasileiro, ajudando um candidato a abordar pessoas sobre vagas de emprego.',
-    'Escreva em português do Brasil, com naturalidade humana: sem clichês ("Espero que esteja bem"), sem bajulação, sem emojis em excesso, sem hashtags.',
+    'Escreva em português do Brasil impecável (acentos e ortografia corretos), com naturalidade humana, sem bajulação, sem emojis soltos, sem hashtags.',
     'NUNCA invente experiências, números, empresas ou fatos que não estejam no contexto. Se faltar informação, seja genérico em vez de inventar.',
     `Tom desejado pelo candidato: ${s.profile.tone}.`,
-    `Estratégia de influência a seguir em todas as mensagens:\n${s.strategy}`,
-    'Responda em JSON: {"variants": ["mensagem 1", "mensagem 2"]} com DUAS variações diferentes de abordagem.',
-  ].join('\n');
+    `Estratégia a seguir em todas as mensagens:\n${s.strategy}`,
+    s.examples?.trim()
+      ? `Abordagens reais que FUNCIONARAM para este candidato (use como referência de estrutura, tom e tamanho; NÃO copie fatos, empresas ou projetos do exemplo que não estejam no currículo):\n${s.examples.trim()}`
+      : '',
+    'Responda em JSON: {"variants": ["mensagem 1", "mensagem 2"]} com DUAS variações diferentes, ambas seguindo a estratégia.',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const history = [...i.events]
     .filter((e) => e.type !== 'note' || e.content)
@@ -77,15 +90,21 @@ export function buildMessagePrompt(i: MessagePromptInput) {
     .join('\n');
 
   const prompt = [
-    `## Tarefa\n${KIND_INSTRUCTIONS[i.kind](limit)}`,
+    `## Tarefa\n${KIND_INSTRUCTIONS[i.kind](limit, Boolean(i.ev))}`,
     `## Quem vai receber\nNome: ${c.name} (chame de "${firstName}")\nPerfil: ${roleLabel(c.role_category)}${c.role_title ? ` — cargo: ${c.role_title}` : ''}\nEmpresa: ${i.company ?? 'não informada'}\nCanal: ${c.platform}${c.notes ? `\nAnotações sobre a pessoa: ${c.notes}` : ''}`,
     `## Como abordar esse perfil\n${s.approach[c.role_category]}`,
     i.job
-      ? `## Vaga relacionada\nTítulo: ${i.job.title}${i.job.url ? `\nLink: ${i.job.url}` : ''}\nDescrição (resumo):\n${(i.job.description ?? '').slice(0, 3500)}`
-      : '## Vaga relacionada\nNenhuma vaga específica — abordagem de interesse na empresa/área.',
+      ? `## Vaga aberta na empresa (CONTEXTO para escolher o tema de valor — não citar a vaga no convite nem na 1ª mensagem)\nTítulo: ${i.job.title}\nDescrição (resumo):\n${(i.job.description ?? '').slice(0, 3500)}`
+      : '## Vaga\nNenhuma vaga específica — abordagem de interesse na empresa/área.',
     `## Sobre o candidato\nNome: ${s.profile.name || i.resume?.personal.name || '(não informado)'}\nHeadline: ${s.profile.headline || i.resume?.personal.headline || ''}\nCargos-alvo: ${s.profile.targetRoles}\nPitch: ${s.profile.pitch}${i.resume ? `\n\nCurrículo resumido:\n${resumeToText(i.resume, { compact: true })}` : ''}`,
     i.ev
       ? `## Entrega de Valor (EV) a entregar\nFormato: ${evKindLabel(i.ev.kind)}\nTítulo: ${i.ev.title}\nResumo: ${i.ev.summary ?? ''}\nConteúdo (trecho):\n${i.ev.content.slice(0, 2500)}`
+      : '',
+    i.companySiteText
+      ? `## Site da empresa (fonte para citar iniciativas reais pelo nome)\n${i.companySiteText.slice(0, 5000)}`
+      : '## Site da empresa\nNão disponível — use apenas o que estiver na vaga e nas anotações; não invente iniciativas.',
+    i.sameCompanyMessage
+      ? `## Já foi enviada esta mensagem para ${i.sameCompanyMessage.name}, da mesma empresa — escreva algo claramente DIFERENTE (outra iniciativa, outro resultado, outra abertura)\n${i.sameCompanyMessage.content.slice(0, 1200)}`
       : '',
     history ? `## Histórico da conversa (mais antigo → mais recente)\n${history}` : '',
     i.instruction ? `## Instrução extra do candidato\n${i.instruction}` : '',
@@ -99,34 +118,34 @@ export function buildMessagePrompt(i: MessagePromptInput) {
 /** Modelo simples usado quando nenhuma IA está configurada. */
 export function fallbackMessage(i: MessagePromptInput): string[] {
   const first = i.contact.name.trim().split(/\s+/)[0];
-  const me = i.settings.profile.name || i.resume?.personal.name || '';
-  const area = i.settings.profile.headline || i.resume?.personal.headline || 'minha área';
+  const area = i.settings.profile.headline || i.resume?.personal.headline || 'profissional de tecnologia';
   const company = i.company ?? 'sua empresa';
-  const vaga = i.job?.title ? `a vaga de ${i.job.title}` : `oportunidades na ${company}`;
+  const target = i.settings.profile.targetRoles || area;
+  const skills =
+    i.resume?.skills
+      .flatMap((g) => g.items.split(','))
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(', ') || 'minhas competências';
   switch (i.kind) {
     case 'invite_note':
       return [
-        `Olá, ${first}! Vi ${vaga} na ${company} e meu perfil (${area}) tem bastante aderência. Gostaria de me conectar para trocar uma ideia.`.slice(
+        `Olá, ${first}. Sou ${area} e estou mapeando o mercado para o meu próximo desafio. A ${company} chamou minha atenção e gostaria de conectar para trocarmos ideias.`.slice(
           0,
           i.settings.followup.inviteNoteLimit,
         ),
       ];
     case 'first_message':
-      return [
-        `Oi, ${first}, obrigado por aceitar a conexão!\n\nSou ${me ? `${me}, ` : ''}${area}, e me interessei por ${vaga}. Tenho experiência alinhada ao que a vaga pede e adoraria entender melhor o processo. Posso te enviar meu currículo?`,
-      ];
-    case 'followup':
-      return [`Oi, ${first}! Passando só para retomar minha mensagem sobre ${vaga}. Se fizer sentido, fico à disposição para uma conversa rápida. Obrigado!`];
-    case 'reply':
-      return [`Obrigado pelo retorno, ${first}! `];
     case 'ev_delivery':
-      return [
-        `Oi, ${first}! Preparei ${i.ev ? `"${i.ev.title}"` : 'um material rápido'} pensando nos desafios da ${company}${i.job?.title ? ` para a área de ${i.job.title}` : ''}. Segue como contribuição — faz sentido para o momento de vocês?`,
-      ];
     case 'direct':
       return [
-        `Assunto: Interesse em ${vaga}\n\nOlá, ${first}! Sou ${me ? `${me}, ` : ''}${area}. Vi ${vaga} e acredito que meu perfil tem boa aderência. Podemos conversar rapidamente sobre o processo?`,
+        `${i.kind === 'direct' ? `Assunto: ${area} — próximo desafio\n\n` : ''}Olá, ${first}. Tudo bem?\n\nSou ${area} e, ao mapear o mercado para o meu próximo desafio profissional em ${target}, a ${company} se destacou no meu radar.\n\nTenho atuação com ${skills}${i.ev ? ` e preparei um material (anexo), "${i.ev.title}", com perspectivas sobre como essa experiência pode apoiar os desafios de vocês` : ''}.\n\nFico à disposição para trocarmos ideias e explorarmos possíveis oportunidades de colaboração no time.`,
       ];
+    case 'followup':
+      return [`Olá ${first}, espero que esteja bem. Gostaria de saber quais características você considera essenciais para o perfil de ${target} na ${company}. Aprecio a oportunidade de entender melhor o que valorizam na equipe.`];
+    case 'reply':
+      return [`Olá ${first}, estou bem, e você como está?\n\n`];
   }
 }
 
@@ -255,7 +274,8 @@ export function buildParsePrompt(text: string) {
 const EV_PRINCIPLES = [
   'A EV é uma pequena contribuição, entregue sem ser pedida, que gera valor real para a empresa/pessoa e conecta com o cargo do candidato.',
   'Objetivo: prender a atenção, demonstrar competência na prática (postura de protagonista) e despertar reciprocidade — a pessoa tende a retribuir abrindo uma conversa ou um processo.',
-  'Precisa ser ESPECÍFICA para essa empresa/vaga (nada genérico), consumível em 2–3 minutos, e mostrar raciocínio do candidato.',
+  'Precisa ser ESPECÍFICA para essa empresa/vaga (nada genérico), consumível em 2–3 minutos, e mostrar raciocínio do candidato. Cite iniciativas/produtos reais da empresa pelo nome quando o contexto trouxer.',
+  'Adeque ao destinatário: recrutador/RH → material de FIT executivo (desafios prováveis do time e como a experiência real do candidato resolve, com resultados e números reais); tech lead/gestor → perspectiva técnica concreta; diretor/dono → visão de negócio. Evite "reflexão estratégica" abstrata para recrutador.',
   'Honestidade: use só fatos do contexto (descrição da vaga, texto do site, anotações) e conhecimento geral de mercado. Quando algo for hipótese sobre a empresa, escreva como hipótese ("provavelmente", "se for o caso"). Nunca invente números, clientes ou fatos internos da empresa.',
 ].join('\n');
 

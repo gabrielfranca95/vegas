@@ -9,6 +9,7 @@ import { canonicalProfileUrl, guessRoleCategory, profileNotes, scrapeLinkedInPro
 import { getContact, getContactEvents, getEV, jobForContact, listContacts, ownContact, ownJob, refreshContactStage, resumeForJob } from '../repo.ts';
 import { getSettings } from '../settings.ts';
 import { HttpError } from './errors.ts';
+import { fetchSiteText } from '../site.ts';
 
 export const contactsRouter = Router();
 
@@ -231,10 +232,53 @@ contactsRouter.post('/:id/generate', async (req, res) => {
   const company = contact.company_id ? ((await get<{ name: string }>('SELECT name FROM companies WHERE id = ?', contact.company_id))?.name ?? null) : null;
 
   let ev: MessagePromptInput['ev'] = null;
+  let evUsed: { id: number; title: string } | null = null;
   if (kind === 'ev_delivery') {
     const evRow = req.body?.ev_id ? await getEV(userId, Number(req.body.ev_id)) : undefined;
     if (!evRow) throw new HttpError(400, 'Escolha qual EV será entregue (crie um na seção Entrega de Valor).');
     ev = { kind: evRow.kind, title: evRow.title, summary: evRow.summary, content: evRow.content };
+    evUsed = { id: evRow.id, title: evRow.title };
+  } else if (kind === 'first_message' || kind === 'followup' || kind === 'direct') {
+    // A 1ª mensagem entrega o EV da pessoa (ou da mesma vaga/empresa); o follow-up complementa o material enviado.
+    const evRow = await get<{ id: number }>(
+      `SELECT id FROM evs WHERE user_id = ? AND content <> '' AND (contact_id = ? OR (job_id IS NOT NULL AND job_id = ?) OR (company_id IS NOT NULL AND company_id = ?))
+       ORDER BY (contact_id = ?) DESC, (status = 'entregue') ${kind === 'followup' ? 'DESC' : 'ASC'}, updated_at DESC LIMIT 1`,
+      userId,
+      id,
+      contact.job_id,
+      contact.company_id,
+      id,
+    );
+    const full = evRow ? await getEV(userId, evRow.id) : undefined;
+    if (full) {
+      ev = { kind: full.kind, title: full.title, summary: full.summary, content: full.content };
+      evUsed = { id: full.id, title: full.title };
+    }
+  }
+
+  // Contexto real da empresa (site) e mensagem já enviada a outra pessoa da mesma empresa.
+  const warnings: string[] = [];
+  const opening = ['invite_note', 'first_message', 'direct', 'ev_delivery'].includes(kind);
+  const companyRow = contact.company_id ? await get<{ website: string | null }>('SELECT website FROM companies WHERE id = ?', contact.company_id) : undefined;
+  const companySiteText = opening && companyRow?.website ? await fetchSiteText(companyRow.website) : null;
+  const sameCompany =
+    opening && contact.company_id
+      ? await get<{ name: string; content: string; occurred_at: string }>(
+          `SELECT c.name, e.content, e.occurred_at FROM contact_events e JOIN contacts c ON c.id = e.contact_id
+           WHERE c.user_id = ? AND c.company_id = ? AND c.id <> ? AND e.type IN ('message_sent', 'ev_delivered', 'invite_sent')
+             AND coalesce(e.content, '') <> '' ORDER BY e.occurred_at DESC LIMIT 1`,
+          userId,
+          contact.company_id,
+          id,
+        )
+      : undefined;
+  if (opening && companyRow?.website && !companySiteText) {
+    warnings.push(`Não consegui ler o site ${companyRow.website} (bloqueado ou fora do ar). A IA usou só a vaga e as anotações.`);
+  } else if (opening && !companySiteText && !job?.description && !contact.notes) {
+    warnings.push('Não há contexto real da empresa (site, vaga ou anotações) — a mensagem tende a sair genérica. Cadastre o site da empresa (aba EV) ou uma vaga com descrição.');
+  }
+  if (sameCompany) {
+    warnings.push(`Você já escreveu para ${sameCompany.name}, da mesma empresa, em ${new Date(sameCompany.occurred_at).toLocaleDateString('pt-BR')}. A IA variou a abordagem para não repetir.`);
   }
 
   const input: MessagePromptInput = {
@@ -247,10 +291,12 @@ contactsRouter.post('/:id/generate', async (req, res) => {
     resume: await resumeForJob(userId, job?.id ?? null),
     instruction: req.body?.instruction,
     ev,
+    companySiteText,
+    sameCompanyMessage: sameCompany ? { name: sameCompany.name, content: sameCompany.content } : null,
   };
 
   if (!settings.ai.keys[settings.ai.provider]) {
-    return void res.json({ variants: fallbackMessage(input), usedAI: false, notice: 'Sem chave de IA configurada: usei um modelo simples. Configure a IA em Configurações.' });
+    return void res.json({ variants: fallbackMessage(input), usedAI: false, evUsed, warnings, notice: 'Sem chave de IA configurada: usei um modelo simples. Configure a IA em Configurações.' });
   }
 
   const { system, prompt } = buildMessagePrompt(input);
@@ -269,5 +315,5 @@ contactsRouter.post('/:id/generate', async (req, res) => {
     variants = [text.trim()];
     if (!variants[0]) throw err;
   }
-  res.json({ variants, usedAI: true, jobUsed: job ? job.title : null, model, failed });
+  res.json({ variants, usedAI: true, jobUsed: job ? job.title : null, model, failed, evUsed, warnings });
 });

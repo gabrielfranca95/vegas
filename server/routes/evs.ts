@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import * as cheerio from 'cheerio';
 import type { EVIdea, EVKind } from '../../shared/types.ts';
 import { EV_KINDS } from '../../shared/types.ts';
 import { completeJson } from '../ai.ts';
@@ -9,7 +8,7 @@ import { evToPdf } from '../export/ev-pdf.ts';
 import { buildEVContentPrompt, buildEVIdeasPrompt, type EVContext } from '../prompts.ts';
 import { getEV, getOfficialResume, jobForContact, listEVs, ownContact, ownJob, resumeForJob } from '../repo.ts';
 import { safeFileName } from '../resume-utils.ts';
-import { htmlToText } from '../scrape.ts';
+import { fetchSiteText } from '../site.ts';
 import { getSettings } from '../settings.ts';
 import { HttpError } from './errors.ts';
 
@@ -17,23 +16,6 @@ export const evsRouter = Router();
 
 const KINDS = EV_KINDS.map((k) => k.key);
 const kindOf = (v: unknown): EVKind => (KINDS.includes(v as EVKind) ? (v as EVKind) : 'flash_report');
-
-async function fetchSiteText(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' },
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return null;
-    const $ = cheerio.load(await res.text());
-    $('script, style, noscript, svg, nav, footer').remove();
-    const meta = [$('title').text(), $('meta[name="description"]').attr('content') ?? ''].filter(Boolean).join(' — ');
-    return `${meta}\n\n${htmlToText($('body').html() ?? '')}`.slice(0, 8000);
-  } catch {
-    return null;
-  }
-}
 
 /** Monta o contexto da IA a partir do contato e/ou vaga, salvando o site da empresa se informado. */
 async function buildContext(userId: number, body: any, opts: { fetchSite?: boolean } = { fetchSite: true }): Promise<{ ctx: EVContext; contactId: number | null; jobId: number | null; companyId: number | null }> {

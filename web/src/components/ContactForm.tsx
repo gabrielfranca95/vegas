@@ -168,6 +168,15 @@ export default function ContactForm({ open, onClose, contact, defaults, onSaved 
             <AlertTriangle size={16} className="mt-0.5 shrink-0" /> {found.profile.warning}
           </p>
         )}
+        {found?.profile.company &&
+          (() => {
+            const jobCompany = jobs.find((j) => j.id === form.job_id)?.company_name ?? form.company;
+            return jobCompany && jobCompany.trim().toLowerCase() !== found.profile.company.trim().toLowerCase() ? (
+              <p className="mt-2 flex items-start gap-1.5 text-sm text-amber-700">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0" /> O perfil indica que a pessoa trabalha hoje em “{found.profile.company}”, não em “{jobCompany}”. Confira antes de abordar.
+              </p>
+            ) : null;
+          })()}
         {found?.existingContactId && (
           <p className="mt-2 flex items-start gap-1.5 text-sm text-red-700">
             <AlertTriangle size={16} className="mt-0.5 shrink-0" /> Essa pessoa já está cadastrada — salve só se quiser duplicar.

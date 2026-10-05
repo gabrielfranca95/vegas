@@ -82,6 +82,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
   const [activeVariant, setActiveVariant] = useState(0);
   const [text, setText] = useState(contact.draft ?? '');
   const [generating, setGenerating] = useState(false);
+  const [genInfo, setGenInfo] = useState<{ warnings: string[]; evUsed: { id: number; title: string } | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [eventForm, setEventForm] = useState<{ type: EventType; content: string; at: string; evId?: number } | null>(null);
 
@@ -131,6 +132,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
       }
       const out = await api.contacts.generate(contact.id, kind_, instruction || undefined, kind_ === 'ev_delivery' ? evId ?? undefined : undefined);
       setVariants(out.variants);
+      setGenInfo({ warnings: out.warnings ?? [], evUsed: out.evUsed ?? null });
       setActiveVariant(0);
       setText(out.variants[0] ?? '');
       if (out.notice) toast(out.notice, 'info');
@@ -157,7 +159,10 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
   };
 
   const markSent = async () => {
-    const updated = await addEvent(SENT_EVENT[kind], text || undefined, undefined, kind === 'ev_delivery' ? evId ?? undefined : undefined);
+    // A 1ª mensagem que entrega um EV é registrada como "EV entregue" (um único evento, que também conta como mensagem enviada).
+    const deliveredEv = kind === 'ev_delivery' ? evId : kind === 'first_message' || kind === 'direct' ? genInfo?.evUsed?.id ?? null : null;
+    const updated = await addEvent(deliveredEv ? 'ev_delivered' : SENT_EVENT[kind], text || undefined, undefined, deliveredEv ?? undefined);
+    setGenInfo(null);
     if (updated) {
       setText('');
       setVariants([]);
@@ -384,6 +389,31 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
           </label>
         )}
 
+        {(kind === 'first_message' || kind === 'direct') && contactEVs.length === 0 && !genInfo?.evUsed && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2 text-sm text-fuchsia-900">
+            <Gift size={15} className="shrink-0" />
+            <span className="flex-1">A 1ª mensagem que funcionou levava um material específico (Flash Report). Esta pessoa ainda não tem EV.</span>
+            <Button size="sm" onClick={() => navigate('ev', { contact: contact.id })}>
+              Criar EV
+            </Button>
+          </div>
+        )}
+        {genInfo?.evUsed && (
+          <p className="mb-2 flex flex-wrap items-center gap-1.5 text-xs text-fuchsia-800">
+            <Gift size={13} /> Mensagem escrita para entregar o EV “{genInfo.evUsed.title}” —
+            <a href={api.evs.pdfUrl(genInfo.evUsed.id)} className="font-semibold underline">
+              baixar o PDF para anexar
+            </a>
+          </p>
+        )}
+        {!!genInfo?.warnings.length && (
+          <div className="mb-2 space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {genInfo.warnings.map((w, i) => (
+              <p key={i}>⚠ {w}</p>
+            ))}
+          </div>
+        )}
+
         {variants.length > 1 && (
           <div className="mb-2 flex gap-1">
             {variants.map((_, i) => (
@@ -417,7 +447,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
             Copiar e abrir LinkedIn
           </Button>
           <Button variant="success" icon={<Check size={15} />} loading={busy} onClick={markSent} className="w-full sm:ml-auto sm:w-auto">
-            Marcar como enviada ({EVENT_LABELS[SENT_EVENT[kind]].toLowerCase()})
+            Marcar como enviada ({(genInfo?.evUsed && (kind === 'first_message' || kind === 'direct') ? EVENT_LABELS.ev_delivered : EVENT_LABELS[SENT_EVENT[kind]]).toLowerCase()})
           </Button>
         </div>
       </div>

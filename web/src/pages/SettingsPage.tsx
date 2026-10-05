@@ -167,6 +167,13 @@ export default function SettingsPage() {
           <Textarea rows={8} autoGrow value={form.strategy} onChange={(e) => setForm((f) => ({ ...f, strategy: e.target.value }))} />
         </Card>
 
+        <Card
+          title="Abordagens que funcionaram (exemplos)"
+          description="Conversas reais que deram certo (e as que não deram). A IA usa como referência de estrutura e tom, sem copiar os fatos. Vá acrescentando novas."
+        >
+          <Textarea rows={8} autoGrow value={form.examples} onChange={(e) => setForm((f) => ({ ...f, examples: e.target.value }))} className="text-sm" />
+        </Card>
+
         <Card title="Abordagem por tipo de pessoa" description="Diretrizes que a IA segue para cada perfil. Ajuste à vontade.">
           <div className="space-y-3">
             {ROLE_CATEGORIES.map((r) => (

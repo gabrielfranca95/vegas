@@ -115,7 +115,16 @@ export const api = {
     updateEvent: (eventId: number, ev: { type?: EventType; content?: string; occurred_at?: string }) => put<Contact>(`/contacts/events/${eventId}`, ev),
     removeEvent: (eventId: number) => request<Contact>('DELETE', `/contacts/events/${eventId}`),
     generate: (id: number, kind: MessageKind, instruction?: string, evId?: number) =>
-      post<{ variants: string[]; usedAI: boolean; notice?: string; jobUsed?: string | null; model?: string | null; failed?: string[] }>(`/contacts/${id}/generate`, {
+      post<{
+        variants: string[];
+        usedAI: boolean;
+        notice?: string;
+        jobUsed?: string | null;
+        model?: string | null;
+        failed?: string[];
+        evUsed?: { id: number; title: string } | null;
+        warnings?: string[];
+      }>(`/contacts/${id}/generate`, {
         kind,
         instruction,
         ev_id: evId,
