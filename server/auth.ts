@@ -83,6 +83,9 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 /** Id do usuário logado (só usar em rotas protegidas por requireAuth). */
 export const uid = (req: Request) => req.user!.id;
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const cleanEmail = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
 const userCount = async () => (await get<{ c: number }>('SELECT COUNT(*)::int AS c FROM users'))!.c;
 
 export const authRouter = Router();
@@ -93,17 +96,17 @@ authRouter.get('/status', async (req, res) => {
 });
 
 authRouter.post('/register', async (req, res) => {
-  const { username, name, password, code } = req.body ?? {};
-  const cleanUser = String(username ?? '').trim().toLowerCase();
+  const { name, password, code } = req.body ?? {};
+  const email = cleanEmail(req.body?.email ?? req.body?.username);
   if ((await userCount()) >= MAX_USERS) throw new HttpError(403, `Limite de ${MAX_USERS} usuários atingido.`);
   if (REGISTRATION_CODE && String(code ?? '').trim() !== REGISTRATION_CODE) throw new HttpError(403, 'Código de convite inválido.');
-  if (!/^[a-z0-9._-]{3,30}$/.test(cleanUser)) throw new HttpError(400, 'Usuário: 3 a 30 caracteres (letras, números, ponto, hífen).');
+  if (!EMAIL_RE.test(email) || email.length > 254) throw new HttpError(400, 'Informe um e-mail válido.');
   if (String(password ?? '').length < 6) throw new HttpError(400, 'A senha precisa ter pelo menos 6 caracteres.');
-  if (await get('SELECT id FROM users WHERE username = ?', cleanUser)) throw new HttpError(409, 'Esse usuário já existe.');
+  if (await get('SELECT id FROM users WHERE username = ?', email)) throw new HttpError(409, 'Esse e-mail já tem conta. Use "Entrar".');
   const result = await run(
     'INSERT INTO users (username, name, password_hash, created_at) VALUES (?, ?, ?, ?) RETURNING id',
-    cleanUser,
-    String(name ?? '').trim() || cleanUser,
+    email,
+    String(name ?? '').trim() || email.split('@')[0],
     hashPassword(String(password)),
     nowIso(),
   );
@@ -113,9 +116,11 @@ authRouter.post('/register', async (req, res) => {
 });
 
 authRouter.post('/login', async (req, res) => {
-  const { username, password } = req.body ?? {};
-  const row = await get<AuthUser & { password_hash: string }>('SELECT * FROM users WHERE username = ?', String(username ?? '').trim().toLowerCase());
-  if (!row || !verifyPassword(String(password ?? ''), row.password_hash)) throw new HttpError(401, 'Usuário ou senha incorretos.');
+  const { password } = req.body ?? {};
+  // O identificador de login é o e-mail (contas antigas podem ter um nome de usuário).
+  const login = cleanEmail(req.body?.email ?? req.body?.username);
+  const row = await get<AuthUser & { password_hash: string }>('SELECT * FROM users WHERE username = ?', login);
+  if (!row || !verifyPassword(String(password ?? ''), row.password_hash)) throw new HttpError(401, 'E-mail ou senha incorretos.');
   await run('DELETE FROM sessions WHERE expires_at <= ?', nowIso());
   await startSession(res, row.id);
   res.json({ user: { id: row.id, username: row.username, name: row.name } });
@@ -135,4 +140,16 @@ authRouter.post('/password', requireAuth, async (req, res) => {
   if (String(next ?? '').length < 6) throw new HttpError(400, 'A nova senha precisa ter pelo menos 6 caracteres.');
   await run('UPDATE users SET password_hash = ? WHERE id = ?', hashPassword(String(next)), uid(req));
   res.status(204).end();
+});
+
+/** Troca o e-mail de login (exige a senha atual). */
+authRouter.post('/email', requireAuth, async (req, res) => {
+  const email = cleanEmail(req.body?.email);
+  const row = (await get<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', uid(req)))!;
+  if (!verifyPassword(String(req.body?.password ?? ''), row.password_hash)) throw new HttpError(400, 'Senha atual incorreta.');
+  if (!EMAIL_RE.test(email) || email.length > 254) throw new HttpError(400, 'Informe um e-mail válido.');
+  const other = await get<{ id: number }>('SELECT id FROM users WHERE username = ? AND id <> ?', email, uid(req));
+  if (other) throw new HttpError(409, 'Esse e-mail já está em uso por outra conta.');
+  await run('UPDATE users SET username = ? WHERE id = ?', email, uid(req));
+  res.json({ user: await get<AuthUser>('SELECT id, username, name FROM users WHERE id = ?', uid(req)) });
 });

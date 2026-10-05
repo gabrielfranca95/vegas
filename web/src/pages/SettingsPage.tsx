@@ -5,6 +5,7 @@ import { AI_PROVIDERS, ROLE_CATEGORIES } from '../../../shared/types';
 import { Button, Field, Input, Textarea } from '../components/ui';
 import { api } from '../lib/api';
 import { useData } from '../lib/store';
+import { useAuth } from '../lib/auth';
 import { useToast } from '../lib/toast';
 
 function Card({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
@@ -215,6 +216,8 @@ export default function SettingsPage() {
           </div>
         </Card>
 
+        <EmailCard />
+
         <PasswordCard />
 
         <div className="flex justify-end pb-6">
@@ -252,6 +255,37 @@ function PasswordCard() {
         <Input type="password" placeholder="Nova senha (mín. 6)" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
         <Button loading={loading} disabled={!current || next.length < 6} onClick={change} className="shrink-0">
           Alterar senha
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function EmailCard() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [email, setEmail] = useState(user.username.includes('@') ? user.username : '');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const save = async () => {
+    setLoading(true);
+    try {
+      await api.auth.changeEmail(email, password);
+      toast('E-mail atualizado. Use-o para entrar.');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Card title="Meu e-mail (login)" description={`Hoje você entra com: ${user.username}`}>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input type="email" placeholder="voce@email.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+        <Input type="password" placeholder="Senha atual" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+        <Button loading={loading} disabled={!email || !password || email === user.username} onClick={save} className="shrink-0">
+          Salvar e-mail
         </Button>
       </div>
     </Card>

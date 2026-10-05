@@ -103,7 +103,7 @@ export default function App() {
               <>
                 <div className="border-b border-slate-100 px-3 py-2">
                   <p className="text-sm font-semibold text-slate-800">{user.name}</p>
-                  <p className="text-xs text-slate-500">@{user.username}</p>
+                  <p className="text-xs break-all text-slate-500">{user.username}</p>
                 </div>
                 <MenuItem icon={<SettingsIcon size={15} />} onClick={() => (close(), navigate('config'))}>
                   Configurações

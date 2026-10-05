@@ -6,7 +6,7 @@ import { Button, Field, Input } from './ui';
 
 export default function AuthScreen({ status, onAuthenticated }: { status: AuthStatus; onAuthenticated: (u: User) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>(status.hasUsers ? 'login' : 'register');
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -18,7 +18,7 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
     setError(null);
     setLoading(true);
     try {
-      const out = mode === 'login' ? await api.auth.login(username, password) : await api.auth.register(username, name, password, code);
+      const out = mode === 'login' ? await api.auth.login(email, password) : await api.auth.register(email, name, password, code);
       onAuthenticated(out.user);
     } catch (err) {
       setError((err as Error).message);
@@ -44,8 +44,17 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
               <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             </Field>
           )}
-          <Field label="Usuário">
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoCapitalize="none" autoComplete="username" />
+          <Field label="E-mail">
+            <Input
+              type={mode === 'register' ? 'email' : 'text'}
+              inputMode="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+              autoCapitalize="none"
+              autoComplete={mode === 'register' ? 'email' : 'username'}
+              placeholder="voce@email.com"
+            />
           </Field>
           <Field label="Senha" hint={mode === 'register' ? 'Mínimo de 6 caracteres' : undefined}>
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
