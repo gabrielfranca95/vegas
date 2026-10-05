@@ -223,7 +223,7 @@ export function buildTailorPrompt(
     resumeRules(ruleOptions),
     '- Mantenha todos os campos "id" existentes. Pode reordenar experiências apenas se fizer sentido; não remova experiências profissionais, mas pode condensar as menos relevantes.',
     '- Ajuste a headline e o resumo para a vaga; reordene habilidades priorizando as pedidas na vaga que o candidato REALMENTE tem (no base ou declaradas nas instruções).',
-    '- Siga as instruções do candidato (foco por tipo de cargo, endereço a usar, texto final etc.) em tudo o que não conflitar com as regras acima. Um texto de fechamento pedido pelo candidato vai no campo "closing" ({"title": "...", "text": "..."}).',
+    '- Siga as instruções do candidato (foco por tipo de cargo, endereço a usar etc.) em tudo o que não conflitar com as regras acima. Se o currículo base já tem "closing", copie-o sem alterações; se não tem e o candidato pediu um texto final, coloque-o em "closing" ({"title": "...", "text": "..."}).',
     'Responda em JSON: {"resume": <objeto completo no MESMO formato do currículo recebido>, "changes": ["mudança 1", ...], "match": {"score": 0-100, "strengths": [...], "gaps": [...], "missingKeywords": [...], "tips": [...]}}',
     '"gaps" e "missingKeywords" são requisitos da vaga que o currículo não demonstra — NÃO os adicione ao currículo; apenas liste para o candidato avaliar.',
   ].join('\n');

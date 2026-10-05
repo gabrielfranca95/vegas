@@ -35,6 +35,8 @@ export async function tailorForJob(userId: number, jobId: number, baseResumeId?:
   if (!out.resume) throw new Error('A IA não retornou o currículo adaptado. Tente novamente.');
 
   const data = normalizeResume(out.resume);
+  // O texto final do currículo base (ex.: filosofia profissional) é mantido exatamente igual em todas as versões.
+  if (base.data.closing.text.trim()) data.closing = { ...base.data.closing };
   const name = `${job.company_name ?? 'Vaga'} · ${job.title}`.slice(0, 120);
   // Cargos renomeados e datas estimadas ficam destacados para o candidato conferir.
   const toReview = (out.changes ?? []).filter((c) => /^(cargo renomeado|data estimada)/i.test(c.trim()));
