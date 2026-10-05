@@ -29,15 +29,20 @@ export async function tailorForJob(userId: number, jobId: number, baseResumeId?:
     base.data,
     { title: job.title, company: job.company_name, description: job.description, location: job.location, workModel: job.work_model },
     settings.resumeAutomation.instructions,
+    { flexibleTitles: settings.resumeAutomation.flexibleTitles, estimateDates: settings.resumeAutomation.estimateDates },
   );
   const out = await completeJson<{ resume: unknown; changes?: string[]; match?: MatchAnalysis }>({ userId, system, prompt, maxTokens: 16000 });
   if (!out.resume) throw new Error('A IA não retornou o currículo adaptado. Tente novamente.');
 
   const data = normalizeResume(out.resume);
   const name = `${job.company_name ?? 'Vaga'} · ${job.title}`.slice(0, 120);
+  // Cargos renomeados e datas estimadas ficam destacados para o candidato conferir.
+  const toReview = (out.changes ?? []).filter((c) => /^(cargo renomeado|data estimada)/i.test(c.trim()));
+  const otherChanges = (out.changes ?? []).filter((c) => !toReview.includes(c));
   const notes = [
+    toReview.length ? `Revisar antes de enviar:\n- ${toReview.join('\n- ')}` : '',
     out.match ? `Aderência estimada: ${out.match.score}%` : '',
-    out.changes?.length ? `Mudanças:\n- ${out.changes.join('\n- ')}` : '',
+    otherChanges.length ? `Mudanças:\n- ${otherChanges.join('\n- ')}` : '',
     out.match?.gaps?.length ? `Lacunas (a vaga pede e o currículo não demonstra):\n- ${out.match.gaps.join('\n- ')}` : '',
   ]
     .filter(Boolean)

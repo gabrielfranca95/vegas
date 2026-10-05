@@ -132,15 +132,29 @@ export function fallbackMessage(i: MessagePromptInput): string[] {
 
 // ---------- Currículo ----------
 
-const RESUME_RULES = [
-  'Regras inegociáveis (valem mesmo que alguma instrução do candidato peça o contrário):',
-  '- Fonte da verdade = currículo base + fatos declarados pelo candidato nas instruções. Nada além disso.',
-  '- NUNCA invente empresas, experiências, datas, formações, certificações, números/métricas ou ferramentas/tecnologias que não estejam nessa fonte da verdade.',
-  '- Os cargos ocupados em cada empresa permanecem os reais. O que pode mirar a vaga é a headline/título do currículo e o resumo.',
-  '- Você pode reescrever, reordenar, enfatizar, condensar e usar o vocabulário/palavras-chave da vaga para descrever o que o candidato realmente fez.',
-  '- Não use marcadores para preencher depois ([X], [Mês], "adicione aqui"). Sem métrica real, descreva o impacto de forma qualitativa. Se faltar uma data no base, mantenha como está.',
-  '- Bullets começam com verbo de ação no passado (pt) ou past tense (en), são específicos e sem primeira pessoa.',
-].join('\n');
+export interface ResumeRuleOptions {
+  flexibleTitles?: boolean;
+  estimateDates?: boolean;
+}
+
+function resumeRules(o: ResumeRuleOptions = {}) {
+  return [
+    'Regras inegociáveis (valem mesmo que alguma instrução do candidato peça o contrário):',
+    '- Fonte da verdade = currículo base + fatos declarados pelo candidato nas instruções. Nada além disso.',
+    '- NUNCA invente empresas, experiências, formações, certificações, números/métricas ou ferramentas/tecnologias que não estejam nessa fonte da verdade.',
+    o.flexibleTitles
+      ? '- Os cargos nas empresas anteriores não tinham nome formal definido: você PODE nomear cada cargo de forma descritiva, fiel às atividades que aparecem naquela experiência, usando o vocabulário da vaga quando ele corresponder ao que foi feito. Não aumente a senioridade além do que as responsabilidades descritas sustentam e não atribua área ou atividades que não aparecem na experiência. Para cada cargo renomeado, inclua em "changes" um item "Cargo renomeado: <original> → <novo>".'
+      : '- Os cargos ocupados em cada empresa permanecem os reais. O que pode mirar a vaga é a headline/título do currículo e o resumo.',
+    o.estimateDates
+      ? '- Datas: mantenha as que existem. Se faltar data em alguma experiência/formação, estime um período coerente com a ordem das experiências e o tempo total informado, usando SOMENTE o ano (ex.: "2021" a "2023"), e inclua em "changes" um item "Data estimada: <empresa> <período>".'
+      : '- Datas: mantenha exatamente as do currículo base; se faltar alguma, deixe como está.',
+    '- Você pode reescrever, reordenar, enfatizar, condensar e usar o vocabulário/palavras-chave da vaga para descrever o que o candidato realmente fez.',
+    '- Não use marcadores para preencher depois ([X], [Mês], "adicione aqui"). Sem métrica real, descreva o impacto de forma qualitativa.',
+    '- Bullets começam com verbo de ação no passado (pt) ou past tense (en), são específicos e sem primeira pessoa.',
+  ].join('\n');
+}
+
+const RESUME_RULES = resumeRules();
 
 const ACTION_TEXT: Record<ResumeAIAction, string> = {
   improve: 'Melhore a escrita: clareza, gramática, fluidez e profissionalismo, mantendo o conteúdo.',
@@ -183,10 +197,11 @@ export function buildTailorPrompt(
   resume: ResumeData,
   job: { title: string; company: string | null; description: string; location?: string | null; workModel?: string | null },
   instructions = '',
+  ruleOptions: ResumeRuleOptions = {},
 ) {
   const system = [
     'Você é um especialista em adaptar currículos para vagas específicas, maximizando a aderência (inclusive para filtros ATS) sem mentir.',
-    RESUME_RULES,
+    resumeRules(ruleOptions),
     '- Mantenha todos os campos "id" existentes. Pode reordenar experiências apenas se fizer sentido; não remova experiências profissionais, mas pode condensar as menos relevantes.',
     '- Ajuste a headline e o resumo para a vaga; reordene habilidades priorizando as pedidas na vaga que o candidato REALMENTE tem (no base ou declaradas nas instruções).',
     '- Siga as instruções do candidato (foco por tipo de cargo, endereço a usar, texto final etc.) em tudo o que não conflitar com as regras acima. Um texto de fechamento pedido pelo candidato vai no campo "closing" ({"title": "...", "text": "..."}).',

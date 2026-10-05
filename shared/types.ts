@@ -124,6 +124,10 @@ export interface Settings {
     instructions: string;
     /** Adapta automaticamente quando uma vaga com descrição entra no quadro. */
     autoOnNewJob: boolean;
+    /** Cargos sem nome formal: a IA pode nomeá-los conforme as atividades reais. */
+    flexibleTitles: boolean;
+    /** Datas não lembradas: a IA pode estimar (só o ano) e marcar para revisão. */
+    estimateDates: boolean;
   };
   followup: {
     inviteStaleDays: number;

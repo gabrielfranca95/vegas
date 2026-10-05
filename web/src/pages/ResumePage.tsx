@@ -275,8 +275,10 @@ function ResumeWorkspace({ resume, onImport, onAutomation }: { resume: Resume; o
             )}
             {tailorResult && <MatchView match={tailorResult.match} changes={tailorResult.changes} />}
             {!tailorResult && resume.notes && (
-              <details className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-2.5 text-sm">
-                <summary className="cursor-pointer font-medium text-violet-800">Notas da adaptação</summary>
+              <details open={resume.notes.startsWith('Revisar')} className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-2.5 text-sm">
+                <summary className="cursor-pointer font-medium text-violet-800">
+                  Notas da adaptação{resume.notes.startsWith('Revisar') && <span className="ml-1 text-amber-700">· tem itens para revisar</span>}
+                </summary>
                 <p className="mt-2 whitespace-pre-line text-slate-700">{resume.notes}</p>
               </details>
             )}

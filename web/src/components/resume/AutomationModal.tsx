@@ -17,6 +17,8 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [instructions, setInstructions] = useState(settings?.resumeAutomation.instructions ?? '');
   const [auto, setAuto] = useState(settings?.resumeAutomation.autoOnNewJob ?? true);
+  const [flexibleTitles, setFlexibleTitles] = useState(settings?.resumeAutomation.flexibleTitles ?? false);
+  const [estimateDates, setEstimateDates] = useState(settings?.resumeAutomation.estimateDates ?? false);
   const [saving, setSaving] = useState(false);
   const [queuing, setQueuing] = useState(false);
 
@@ -26,7 +28,7 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const save = async () => {
     setSaving(true);
     try {
-      setSettings(await api.settings.save({ resumeAutomation: { instructions, autoOnNewJob: auto } }));
+      setSettings(await api.settings.save({ resumeAutomation: { instructions, autoOnNewJob: auto, flexibleTitles, estimateDates } }));
       toast('Automação salva');
       return true;
     } catch (e) {
@@ -94,12 +96,28 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
+        <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+          <label className="flex items-start gap-2 text-sm text-slate-800">
+            <input type="checkbox" checked={flexibleTitles} onChange={(e) => setFlexibleTitles(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-indigo-600" />
+            <span>
+              <b>Meus cargos não tinham nome formal</b> — a IA pode nomear cada cargo pelo que eu realmente fazia, usando o vocabulário da vaga quando corresponder (sem subir a
+              senioridade).
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-slate-800">
+            <input type="checkbox" checked={estimateDates} onChange={(e) => setEstimateDates(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-indigo-600" />
+            <span>
+              <b>Não lembro as datas exatas</b> — quando faltar data no currículo base, a IA estima o período (só o ano), coerente com a ordem das experiências.
+            </span>
+          </label>
+          <p className="text-xs text-slate-500">Cargos renomeados e datas estimadas aparecem em “Revisar antes de enviar”, nas notas de cada currículo adaptado.</p>
+        </div>
+
         <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-xs text-emerald-900">
           <ShieldCheck size={16} className="mt-0.5 shrink-0" />
           <p>
-            A IA segue as suas instruções, mas só afirma o que é verdade: usa o currículo base + o que você declarar aqui (ex.: “também domino RD Station”). Ela não inventa
-            empresas, datas, formações, números ou ferramentas, e mantém os cargos reais de cada empresa — a headline/título do currículo é que mira o cargo da vaga. O que a vaga
-            pede e você não declarou aparece como “Lacunas” na versão adaptada, para você decidir se acrescenta aqui.
+            A IA segue as suas instruções usando o currículo base + o que você declarar aqui (ex.: “também domino RD Station”). Ela não inventa empresas, formações, números ou
+            ferramentas. O que a vaga pede e você não declarou aparece como “Lacunas” na versão adaptada, para você decidir se acrescenta aqui.
           </p>
         </div>
       </div>

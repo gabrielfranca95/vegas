@@ -47,7 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
     'Limites: nunca minta, não invente urgência, outras propostas ou contatos em comum.',
   ].join('\n'),
   goal: { interactionsPerOffer: 200 },
-  resumeAutomation: { instructions: '', autoOnNewJob: true },
+  resumeAutomation: { instructions: '', autoOnNewJob: true, flexibleTitles: false, estimateDates: false },
   approach: {
     recrutador:
       'Seja direto e objetivo. Cite a vaga específica (ou a área), resuma em uma frase por que o perfil encaixa (stack principal + tempo de experiência) e pergunte sobre o processo/próximos passos. Facilite o trabalho do recrutador: ofereça enviar o currículo.',
