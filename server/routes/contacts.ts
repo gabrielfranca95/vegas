@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { EventType, MessageKind, ProfileData } from '../../shared/types.ts';
-import { complete, completeJson } from '../ai.ts';
+import { AIError, complete, completeJson, completeJsonWithModel } from '../ai.ts';
 import { uid } from '../auth.ts';
 import { findOrCreateCompany, get, nowIso, run } from '../db.ts';
 import { computeMetrics } from '../followup.ts';
@@ -255,14 +255,19 @@ contactsRouter.post('/:id/generate', async (req, res) => {
 
   const { system, prompt } = buildMessagePrompt(input);
   let variants: string[];
+  let model: string | null = null;
+  let failed: string[] = [];
   try {
-    const out = await completeJson<{ variants?: string[]; message?: string }>({ userId, system, prompt, maxTokens: 4000 });
+    const r = await completeJsonWithModel<{ variants?: string[]; message?: string }>({ userId, system, prompt, maxTokens: 4000 });
+    ({ model, failed } = r);
+    const out = r.data;
     variants = (out.variants ?? (out.message ? [out.message] : [])).map((v) => String(v).trim()).filter(Boolean);
   } catch (err) {
+    if (err instanceof AIError && err.status !== 502) throw err;
     // Alguns modelos ignoram o pedido de JSON; nesse caso usa o texto puro.
     const text = await complete({ userId, system: system.replace(/Responda em JSON.*$/m, 'Responda apenas com a mensagem.'), prompt, maxTokens: 3000 });
     variants = [text.trim()];
     if (!variants[0]) throw err;
   }
-  res.json({ variants, usedAI: true, jobUsed: job ? job.title : null });
+  res.json({ variants, usedAI: true, jobUsed: job ? job.title : null, model, failed });
 });

@@ -4,7 +4,7 @@
 export type AIProvider = 'gemini' | 'openai' | 'anthropic' | 'deepseek';
 
 export const AI_PROVIDERS: { key: AIProvider; label: string; defaultModel: string }[] = [
-  { key: 'gemini', label: 'Google Gemini', defaultModel: 'gemini-2.5-flash' },
+  { key: 'gemini', label: 'Google Gemini', defaultModel: 'gemini-3.5-flash' },
   { key: 'openai', label: 'OpenAI (ChatGPT)', defaultModel: 'gpt-5-mini' },
   { key: 'anthropic', label: 'Anthropic (Claude)', defaultModel: 'claude-sonnet-5-5' },
   { key: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-chat' },
@@ -102,6 +102,8 @@ export interface Settings {
     provider: AIProvider;
     keys: Record<AIProvider, string>;
     models: Record<AIProvider, string>;
+    /** Modelos reserva, tentados em ordem quando o principal está indisponível. */
+    fallbacks: Record<AIProvider, string[]>;
   };
   profile: {
     name: string;

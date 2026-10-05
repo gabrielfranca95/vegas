@@ -17,10 +17,16 @@ export const DEFAULT_SETTINGS: Settings = {
     provider: 'gemini',
     keys: { gemini: '', openai: '', anthropic: '', deepseek: '' },
     models: {
-      gemini: 'gemini-2.5-flash',
+      gemini: 'gemini-3.5-flash',
       openai: 'gpt-5-mini',
       anthropic: 'claude-sonnet-5-5',
       deepseek: 'deepseek-chat',
+    },
+    fallbacks: {
+      gemini: ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest'],
+      openai: [],
+      anthropic: [],
+      deepseek: [],
     },
   },
   profile: {

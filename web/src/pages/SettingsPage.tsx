@@ -26,6 +26,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<AIProvider | null>(null);
   const [daysText, setDaysText] = useState(form.followup.days.join(', '));
+  const [fallbackText, setFallbackText] = useState<Record<AIProvider, string>>(
+    () => Object.fromEntries(AI_PROVIDERS.map((p) => [p.key, (form.ai.fallbacks?.[p.key] ?? []).join(', ')])) as Record<AIProvider, string>,
+  );
 
   const save = async () => {
     setSaving(true);
@@ -34,7 +37,16 @@ export default function SettingsPage() {
         .split(/[,;\s]+/)
         .map(Number)
         .filter((n) => n > 0);
-      const { hasKey: _h, ...patch } = { ...form, followup: { ...form.followup, days: days.length ? days : [3] } };
+      const fallbacks = Object.fromEntries(
+        AI_PROVIDERS.map((p) => [
+          p.key,
+          fallbackText[p.key]
+            .split(/[,;\n]+/)
+            .map((m) => m.trim())
+            .filter(Boolean),
+        ]),
+      ) as Record<AIProvider, string[]>;
+      const { hasKey: _h, ...patch } = { ...form, ai: { ...form.ai, fallbacks }, followup: { ...form.followup, days: days.length ? days : [3] } };
       const saved = await api.settings.save(patch);
       setSettings(saved);
       setForm(structuredClone(saved));
@@ -53,7 +65,12 @@ export default function SettingsPage() {
       // Salva antes de testar para usar a chave recém-digitada.
       await save();
       const r = await api.settings.testAI(p);
-      toast(`${p}: conexão OK (${r.ms} ms) — resposta: "${r.reply}"`);
+      toast(
+        r.failed.length
+          ? `Funcionou com o reserva ${r.model} (${r.ms} ms).\nIndisponíveis agora:\n${r.failed.join('\n')}`
+          : `Conexão OK com ${r.model} (${r.ms} ms) — resposta: "${r.reply}"`,
+        r.failed.length ? 'info' : 'success',
+      );
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -108,6 +125,15 @@ export default function SettingsPage() {
                       Testar
                     </Button>
                   </div>
+                  <label className="mt-2 flex flex-col gap-1 text-xs text-slate-600 sm:flex-row sm:items-center">
+                    <span className="shrink-0 sm:w-48">Modelos reserva (em ordem)</span>
+                    <Input
+                      className="flex-1 font-mono text-xs"
+                      value={fallbackText[p.key]}
+                      onChange={(e) => setFallbackText((f) => ({ ...f, [p.key]: e.target.value }))}
+                      placeholder="usados se o principal estiver sobrecarregado — separados por vírgula"
+                    />
+                  </label>
                 </div>
               );
             })}

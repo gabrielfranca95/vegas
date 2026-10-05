@@ -2,7 +2,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AIProvider } from '../shared/types.ts';
-import { AIError, complete } from './ai.ts';
+import { AIError, completeWithModel } from './ai.ts';
 import { authRouter, requireAuth, uid } from './auth.ts';
 import { contactsRouter } from './routes/contacts.ts';
 import { HttpError } from './routes/errors.ts';
@@ -35,14 +35,14 @@ app.put('/api/settings', async (req, res) => {
 app.post('/api/settings/test-ai', async (req, res) => {
   const provider = req.body?.provider as AIProvider | undefined;
   const started = Date.now();
-  const text = await complete({
+  const r = await completeWithModel({
     userId: uid(req),
     provider,
     system: 'Você é um assistente de teste de conexão.',
     prompt: 'Responda apenas: OK',
     maxTokens: 2000,
   });
-  res.json({ ok: true, reply: text.trim().slice(0, 100), ms: Date.now() - started });
+  res.json({ ok: true, reply: r.text.trim().slice(0, 100), ms: Date.now() - started, model: r.model, failed: r.failed });
 });
 
 app.use('/api/jobs', jobsRouter);

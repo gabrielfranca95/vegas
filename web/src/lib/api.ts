@@ -84,7 +84,7 @@ export const api = {
   settings: {
     get: () => get<PublicSettings>('/settings'),
     save: (patch: Partial<Settings>) => put<PublicSettings>('/settings', patch),
-    testAI: (provider: string) => post<{ ok: boolean; reply: string; ms: number }>('/settings/test-ai', { provider }),
+    testAI: (provider: string) => post<{ ok: boolean; reply: string; ms: number; model: string; failed: string[] }>('/settings/test-ai', { provider }),
   },
   jobs: {
     list: () => get<Job[]>('/jobs'),
@@ -109,7 +109,11 @@ export const api = {
     updateEvent: (eventId: number, ev: { type?: EventType; content?: string; occurred_at?: string }) => put<Contact>(`/contacts/events/${eventId}`, ev),
     removeEvent: (eventId: number) => request<Contact>('DELETE', `/contacts/events/${eventId}`),
     generate: (id: number, kind: MessageKind, instruction?: string, evId?: number) =>
-      post<{ variants: string[]; usedAI: boolean; notice?: string; jobUsed?: string | null }>(`/contacts/${id}/generate`, { kind, instruction, ev_id: evId }),
+      post<{ variants: string[]; usedAI: boolean; notice?: string; jobUsed?: string | null; model?: string | null; failed?: string[] }>(`/contacts/${id}/generate`, {
+        kind,
+        instruction,
+        ev_id: evId,
+      }),
   },
   resumes: {
     list: () => get<Resume[]>('/resumes'),

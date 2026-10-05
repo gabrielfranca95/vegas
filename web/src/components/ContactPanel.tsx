@@ -134,6 +134,7 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
       setActiveVariant(0);
       setText(out.variants[0] ?? '');
       if (out.notice) toast(out.notice, 'info');
+      if (out.failed?.length) toast(`Gerado com ${out.model} (reserva). Indisponíveis agora:\n${out.failed.join('\n')}`, 'info');
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
