@@ -88,8 +88,8 @@ function deepMerge<T>(base: T, patch: unknown): T {
   return out as T;
 }
 
-export function getSettings(userId: number): Settings {
-  const row = get<{ value: string }>('SELECT value FROM settings WHERE key = ?', keyFor(userId));
+export async function getSettings(userId: number): Promise<Settings> {
+  const row = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', keyFor(userId));
   const stored = row ? JSON.parse(row.value) : {};
   const settings = deepMerge(structuredClone(DEFAULT_SETTINGS), stored);
   for (const p of PROVIDERS) {
@@ -98,8 +98,8 @@ export function getSettings(userId: number): Settings {
   return settings;
 }
 
-function saveSettings(userId: number, settings: Settings) {
-  run(
+async function saveSettings(userId: number, settings: Settings) {
+  await run(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     keyFor(userId),
     JSON.stringify(settings),
@@ -124,8 +124,8 @@ export function toPublic(settings: Settings): PublicSettings {
 }
 
 /** Aplica um patch vindo do front. Chaves mascaradas (inalteradas) são ignoradas. */
-export function updateSettings(userId: number, patch: Partial<Settings>): Settings {
-  const current = getSettings(userId);
+export async function updateSettings(userId: number, patch: Partial<Settings>): Promise<Settings> {
+  const current = await getSettings(userId);
   const incomingKeys = patch.ai?.keys;
   if (patch.ai) {
     const { keys: _ignored, ...restAi } = patch.ai;
@@ -138,6 +138,6 @@ export function updateSettings(userId: number, patch: Partial<Settings>): Settin
       if (typeof v === 'string' && !v.startsWith(MASK)) merged.ai.keys[p] = v.trim();
     }
   }
-  saveSettings(userId, merged);
+  await saveSettings(userId, merged);
   return merged;
 }

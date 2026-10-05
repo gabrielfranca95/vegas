@@ -365,6 +365,8 @@ export interface AuthStatus {
   user: User | null;
   canRegister: boolean;
   hasUsers: boolean;
+  /** Cadastro exige código de convite (ambiente publicado). */
+  needsCode: boolean;
 }
 
 // ---------- EV (Entrega de Valor) ----------

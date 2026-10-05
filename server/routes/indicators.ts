@@ -52,13 +52,13 @@ function milestones(jobs: JobRow[], history: HistoryRow[], contacts: Contact[], 
   return firstAt;
 }
 
-indicatorsRouter.get('/', (req, res) => {
+indicatorsRouter.get('/', async (req, res) => {
   const userId = uid(req);
   const weeks = Math.min(52, Math.max(4, Number(req.query.weeks) || 12));
-  const settings = getSettings(userId);
-  const contacts = listContacts(userId);
-  const jobs = all<JobRow>('SELECT id, platform, status, created_at, applied_at FROM jobs WHERE user_id = ?', userId);
-  const history = all<HistoryRow>(
+  const settings = await getSettings(userId);
+  const contacts = await listContacts(userId);
+  const jobs = await all<JobRow>('SELECT id, platform, status, created_at, applied_at FROM jobs WHERE user_id = ?', userId);
+  const history = await all<HistoryRow>(
     'SELECT h.job_id, h.to_status, h.changed_at FROM job_status_history h JOIN jobs j ON j.id = h.job_id WHERE j.user_id = ?',
     userId,
   );

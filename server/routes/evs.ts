@@ -37,30 +37,30 @@ async function fetchSiteText(url: string): Promise<string | null> {
 
 /** Monta o contexto da IA a partir do contato e/ou vaga, salvando o site da empresa se informado. */
 async function buildContext(userId: number, body: any, opts: { fetchSite?: boolean } = { fetchSite: true }): Promise<{ ctx: EVContext; contactId: number | null; jobId: number | null; companyId: number | null }> {
-  const contact = body.contact_id ? ownContact(userId, Number(body.contact_id)) : null;
+  const contact = body.contact_id ? await ownContact(userId, Number(body.contact_id)) : null;
   if (body.contact_id && !contact) throw new HttpError(404, 'Contato não encontrado');
-  let job = body.job_id ? ownJob(userId, Number(body.job_id)) : null;
+  let job = body.job_id ? await ownJob(userId, Number(body.job_id)) : null;
   if (body.job_id && !job) throw new HttpError(404, 'Vaga não encontrada');
-  if (!job && contact) job = jobForContact(contact);
+  if (!job && contact) job = await jobForContact(contact);
 
   let companyId: number | null = contact?.company_id ?? job?.company_id ?? null;
-  if (!companyId && body.company) companyId = findOrCreateCompany(userId, body.company);
+  if (!companyId && body.company) companyId = await findOrCreateCompany(userId, body.company);
   const companyUrl = String(body.company_url ?? '').trim();
   if (companyId && /^https?:\/\//i.test(companyUrl)) {
-    run('UPDATE companies SET website = ? WHERE id = ? AND user_id = ?', companyUrl, companyId, userId);
+    await run('UPDATE companies SET website = ? WHERE id = ? AND user_id = ?', companyUrl, companyId, userId);
   }
-  const company = companyId ? get<{ name: string; website: string | null }>('SELECT name, website FROM companies WHERE id = ?', companyId) : undefined;
+  const company = companyId ? await get<{ name: string; website: string | null }>('SELECT name, website FROM companies WHERE id = ?', companyId) : undefined;
   const site = companyUrl || company?.website || '';
   const companySiteText = opts.fetchSite && /^https?:\/\//i.test(site) ? await fetchSiteText(site) : null;
 
   return {
     ctx: {
-      settings: getSettings(userId),
+      settings: await getSettings(userId),
       company: company?.name ?? null,
       companySiteText,
       job: job ? { title: job.title, description: job.description } : null,
       contact: contact ? { name: contact.name, role_category: contact.role_category, role_title: contact.role_title, notes: contact.notes } : null,
-      resume: resumeForJob(userId, job?.id ?? null),
+      resume: await resumeForJob(userId, job?.id ?? null),
       instruction: body.instruction ? String(body.instruction) : undefined,
     },
     contactId: contact?.id ?? null,
@@ -69,8 +69,8 @@ async function buildContext(userId: number, body: any, opts: { fetchSite?: boole
   };
 }
 
-evsRouter.get('/', (req, res) => {
-  res.json(listEVs(uid(req)));
+evsRouter.get('/', async (req, res) => {
+  res.json(await listEVs(uid(req)));
 });
 
 evsRouter.post('/ideas', async (req, res) => {
@@ -88,9 +88,9 @@ evsRouter.post('/', async (req, res) => {
   if (!String(b.title ?? '').trim()) throw new HttpError(400, 'Dê um título ao EV.');
   const { contactId, jobId, companyId } = await buildContext(userId, { ...b, company_url: undefined }, { fetchSite: false });
   const now = nowIso();
-  const result = run(
+  const result = await run(
     `INSERT INTO evs (user_id, contact_id, job_id, company_id, kind, title, summary, content, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     userId,
     contactId,
     jobId,
@@ -103,17 +103,17 @@ evsRouter.post('/', async (req, res) => {
     now,
     now,
   );
-  res.status(201).json(getEV(userId, Number(result.lastInsertRowid)));
+  res.status(201).json(await getEV(userId, result.id!));
 });
 
-evsRouter.put('/:id', (req, res) => {
+evsRouter.put('/:id', async (req, res) => {
   const userId = uid(req);
   const id = Number(req.params.id);
-  const current = getEV(userId, id);
+  const current = await getEV(userId, id);
   if (!current) throw new HttpError(404, 'EV não encontrado');
   const b = req.body ?? {};
   const status = ['ideia', 'pronto', 'entregue'].includes(b.status) ? b.status : current.status;
-  run(
+  await run(
     'UPDATE evs SET title = ?, kind = ?, summary = ?, content = ?, status = ?, delivered_at = ?, updated_at = ? WHERE id = ?',
     b.title ?? current.title,
     b.kind ? kindOf(b.kind) : current.kind,
@@ -124,18 +124,18 @@ evsRouter.put('/:id', (req, res) => {
     nowIso(),
     id,
   );
-  res.json(getEV(userId, id));
+  res.json(await getEV(userId, id));
 });
 
-evsRouter.delete('/:id', (req, res) => {
-  run('DELETE FROM evs WHERE id = ? AND user_id = ?', Number(req.params.id), uid(req));
+evsRouter.delete('/:id', async (req, res) => {
+  await run('DELETE FROM evs WHERE id = ? AND user_id = ?', Number(req.params.id), uid(req));
   res.status(204).end();
 });
 
 evsRouter.post('/:id/generate', async (req, res) => {
   const userId = uid(req);
   const id = Number(req.params.id);
-  const ev = getEV(userId, id);
+  const ev = await getEV(userId, id);
   if (!ev) throw new HttpError(404, 'EV não encontrado');
   const { ctx } = await buildContext(userId, {
     contact_id: ev.contact_id,
@@ -147,22 +147,22 @@ evsRouter.post('/:id/generate', async (req, res) => {
   const { system, prompt } = buildEVContentPrompt(ctx, ev);
   const out = await completeJson<{ summary?: string; content?: string }>({ userId, system, prompt, maxTokens: 8000 });
   if (!out.content) throw new HttpError(502, 'A IA não retornou o conteúdo. Tente novamente.');
-  run(
+  await run(
     "UPDATE evs SET content = ?, summary = ?, status = CASE WHEN status = 'entregue' THEN status ELSE 'pronto' END, updated_at = ? WHERE id = ?",
     String(out.content),
     out.summary ? String(out.summary) : ev.summary,
     nowIso(),
     id,
   );
-  res.json({ ev: getEV(userId, id), usedCompanySite: Boolean(ctx.companySiteText) });
+  res.json({ ev: await getEV(userId, id), usedCompanySite: Boolean(ctx.companySiteText) });
 });
 
 evsRouter.get('/:id/pdf', async (req, res) => {
   const userId = uid(req);
-  const ev = getEV(userId, Number(req.params.id));
+  const ev = await getEV(userId, Number(req.params.id));
   if (!ev) throw new HttpError(404, 'EV não encontrado');
-  const settings = getSettings(userId);
-  const p = getOfficialResume(userId)?.data.personal;
+  const settings = await getSettings(userId);
+  const p = (await getOfficialResume(userId))?.data.personal;
   const buffer = await evToPdf({
     title: ev.title,
     kindLabel: EV_KINDS.find((k) => k.key === ev.kind)?.label.replace(/\s*\(PDF\)/, '') ?? 'Entrega de Valor',

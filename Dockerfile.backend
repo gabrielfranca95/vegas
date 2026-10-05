@@ -1,0 +1,19 @@
+# API (Express) compilada com esbuild; dependências de runtime instaladas sem as de desenvolvimento.
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY shared ./shared
+COPY server ./server
+RUN npx esbuild server/index.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist-server/index.js
+
+FROM node:22-alpine
+WORKDIR /app
+ENV NODE_ENV=production PORT=3001 NODE_OPTIONS=--max-old-space-size=180
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist-server ./dist-server
+USER node
+EXPOSE 3001
+CMD ["node", "dist-server/index.js"]

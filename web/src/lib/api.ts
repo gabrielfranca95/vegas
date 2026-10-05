@@ -64,7 +64,7 @@ export const api = {
   auth: {
     status: () => get<AuthStatus>('/auth/status'),
     login: (username: string, password: string) => post<{ user: User }>('/auth/login', { username, password }),
-    register: (username: string, name: string, password: string) => post<{ user: User }>('/auth/register', { username, name, password }),
+    register: (username: string, name: string, password: string, code?: string) => post<{ user: User }>('/auth/register', { username, name, password, code }),
     logout: () => post<void>('/auth/logout'),
     changePassword: (current: string, next: string) => post<void>('/auth/password', { current, next }),
   },

@@ -15,7 +15,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus | null>(null);
 
-  const load = useCallback(() => api.auth.status().then(setStatus).catch(() => setStatus({ user: null, canRegister: false, hasUsers: true })), []);
+  const load = useCallback(() => api.auth.status().then(setStatus).catch(() => setStatus({ user: null, canRegister: false, hasUsers: true, needsCode: false })), []);
 
   useEffect(() => {
     load();

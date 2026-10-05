@@ -35,17 +35,17 @@ function normalizeLinkedIn(url: unknown) {
 }
 
 /** Vaga informada, desde que pertença ao usuário. */
-function validJobId(userId: number, jobId: unknown): number | null {
+async function validJobId(userId: number, jobId: unknown): Promise<number | null> {
   if (!jobId) return null;
-  const job = ownJob(userId, Number(jobId));
+  const job = await ownJob(userId, Number(jobId));
   if (!job) throw new HttpError(400, 'Vaga inválida.');
   return job.id;
 }
 
 /** Empresa do contato: a informada, ou herdada da vaga vinculada. */
-function resolveCompany(userId: number, body: any, jobId: number | null): number | null {
+async function resolveCompany(userId: number, body: any, jobId: number | null): Promise<number | null> {
   if (body.company) return findOrCreateCompany(userId, body.company);
-  if (jobId) return ownJob(userId, jobId)?.company_id ?? null;
+  if (jobId) return (await ownJob(userId, jobId))?.company_id ?? null;
   return null;
 }
 
@@ -57,48 +57,48 @@ function eventOwner(userId: number, eventId: number) {
   );
 }
 
-contactsRouter.get('/', (req, res) => {
-  res.json(listContacts(uid(req)));
+contactsRouter.get('/', async (req, res) => {
+  res.json(await listContacts(uid(req)));
 });
 
-contactsRouter.get('/metrics', (req, res) => {
-  res.json(computeMetrics(listContacts(uid(req))));
+contactsRouter.get('/metrics', async (req, res) => {
+  res.json(computeMetrics(await listContacts(uid(req))));
 });
 
-contactsRouter.post('/', (req, res) => {
+contactsRouter.post('/', async (req, res) => {
   const userId = uid(req);
   const b = req.body ?? {};
   if (!String(b.name ?? '').trim()) throw new HttpError(400, 'Informe o nome da pessoa.');
   const now = nowIso();
-  const jobId = validJobId(userId, b.job_id);
-  const result = run(
+  const jobId = await validJobId(userId, b.job_id);
+  const result = await run(
     `INSERT INTO contacts (user_id, name, linkedin_url, role_category, role_title, company_id, job_id, platform, stage, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'novo', ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'novo', ?, ?, ?) RETURNING id`,
     userId,
     String(b.name).trim(),
     normalizeLinkedIn(b.linkedin_url),
     b.role_category ?? 'recrutador',
     b.role_title || null,
-    resolveCompany(userId, b, jobId),
+    await resolveCompany(userId, b, jobId),
     jobId,
     b.platform ?? 'linkedin',
     b.notes || null,
     now,
     now,
   );
-  const id = Number(result.lastInsertRowid);
+  const id = result.id!;
   // Permite cadastrar alguém que já é conexão (pula a etapa do convite).
   if (b.already_connected) {
-    run("INSERT INTO contact_events (contact_id, type, content, occurred_at, created_at) VALUES (?, 'invite_accepted', 'Já era conexão', ?, ?)", id, now, now);
-    refreshContactStage(id);
+    await run("INSERT INTO contact_events (contact_id, type, content, occurred_at, created_at) VALUES (?, 'invite_accepted', 'Já era conexão', ?, ?)", id, now, now);
+    await refreshContactStage(id);
   }
-  res.status(201).json(getContact(userId, id));
+  res.status(201).json(await getContact(userId, id));
 });
 
-contactsRouter.put('/:id', (req, res) => {
+contactsRouter.put('/:id', async (req, res) => {
   const userId = uid(req);
   const id = Number(req.params.id);
-  if (!ownContact(userId, id)) throw new HttpError(404, 'Contato não encontrado');
+  if (!(await ownContact(userId, id))) throw new HttpError(404, 'Contato não encontrado');
   const b = req.body ?? {};
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -110,70 +110,70 @@ contactsRouter.put('/:id', (req, res) => {
   }
   let jobId: number | null = null;
   if ('job_id' in b) {
-    jobId = validJobId(userId, b.job_id);
+    jobId = await validJobId(userId, b.job_id);
     sets.push('job_id = ?');
     params.push(jobId);
   }
   if ('company' in b || (jobId && !b.company)) {
     sets.push('company_id = ?');
-    params.push(resolveCompany(userId, b, jobId));
+    params.push(await resolveCompany(userId, b, jobId));
   }
-  if (!sets.length) return void res.json(getContact(userId, id));
+  if (!sets.length) return void res.json(await getContact(userId, id));
   sets.push('updated_at = ?');
   params.push(nowIso());
-  run(`UPDATE contacts SET ${sets.join(', ')} WHERE id = ?`, ...params, id);
-  res.json(getContact(userId, id));
+  await run(`UPDATE contacts SET ${sets.join(', ')} WHERE id = ?`, ...params, id);
+  res.json(await getContact(userId, id));
 });
 
-contactsRouter.delete('/:id', (req, res) => {
-  run('DELETE FROM contacts WHERE id = ? AND user_id = ?', Number(req.params.id), uid(req));
+contactsRouter.delete('/:id', async (req, res) => {
+  await run('DELETE FROM contacts WHERE id = ? AND user_id = ?', Number(req.params.id), uid(req));
   res.status(204).end();
 });
 
 // ---------- Linha do tempo ----------
 
-contactsRouter.post('/:id/events', (req, res) => {
+contactsRouter.post('/:id/events', async (req, res) => {
   const userId = uid(req);
   const id = Number(req.params.id);
-  if (!ownContact(userId, id)) throw new HttpError(404, 'Contato não encontrado');
+  if (!(await ownContact(userId, id))) throw new HttpError(404, 'Contato não encontrado');
   const { type, content, occurred_at, ev_id } = req.body ?? {};
   if (!EVENT_TYPES.includes(type)) throw new HttpError(400, 'Tipo de evento inválido');
   const at = occurred_at ? new Date(occurred_at).toISOString() : nowIso();
-  run('INSERT INTO contact_events (contact_id, type, content, occurred_at, created_at) VALUES (?, ?, ?, ?, ?)', id, type, content || null, at, nowIso());
+  await run('INSERT INTO contact_events (contact_id, type, content, occurred_at, created_at) VALUES (?, ?, ?, ?, ?)', id, type, content || null, at, nowIso());
   // Registrar uma interação limpa o "adiar lembrete" e o rascunho já enviado.
   const clearDraft = ['invite_sent', 'message_sent', 'followup_sent', 'ev_delivered'].includes(type);
-  run(`UPDATE contacts SET snooze_until = NULL${clearDraft ? ', draft = NULL' : ''} WHERE id = ?`, id);
+  await run(`UPDATE contacts SET snooze_until = NULL${clearDraft ? ', draft = NULL' : ''} WHERE id = ?`, id);
   if (type === 'ev_delivered' && ev_id) {
-    run("UPDATE evs SET status = 'entregue', delivered_at = ?, contact_id = COALESCE(contact_id, ?), updated_at = ? WHERE id = ? AND user_id = ?", at, id, nowIso(), Number(ev_id), userId);
+    await run("UPDATE evs SET status = 'entregue', delivered_at = ?, contact_id = COALESCE(contact_id, ?), updated_at = ? WHERE id = ? AND user_id = ?", at, id, nowIso(), Number(ev_id), userId);
   }
-  refreshContactStage(id);
-  res.status(201).json(getContact(userId, id));
+  await refreshContactStage(id);
+  res.status(201).json(await getContact(userId, id));
 });
 
-contactsRouter.put('/events/:eventId', (req, res) => {
+contactsRouter.put('/events/:eventId', async (req, res) => {
   const userId = uid(req);
-  const ev = eventOwner(userId, Number(req.params.eventId));
+  const ev = await eventOwner(userId, Number(req.params.eventId));
   if (!ev) throw new HttpError(404, 'Evento não encontrado');
   const { content, occurred_at, type } = req.body ?? {};
   if (type !== undefined && !EVENT_TYPES.includes(type)) throw new HttpError(400, 'Tipo de evento inválido');
-  run(
+  await run(
     'UPDATE contact_events SET content = COALESCE(?, content), occurred_at = COALESCE(?, occurred_at), type = COALESCE(?, type) WHERE id = ?',
     content ?? null,
     occurred_at ? new Date(occurred_at).toISOString() : null,
     type ?? null,
     Number(req.params.eventId),
   );
-  refreshContactStage(ev.contact_id);
-  res.json(getContact(userId, ev.contact_id));
+  await refreshContactStage(ev.contact_id);
+  res.json(await getContact(userId, ev.contact_id));
 });
 
-contactsRouter.delete('/events/:eventId', (req, res) => {
+contactsRouter.delete('/events/:eventId', async (req, res) => {
   const userId = uid(req);
-  const ev = eventOwner(userId, Number(req.params.eventId));
+  const ev = await eventOwner(userId, Number(req.params.eventId));
   if (!ev) throw new HttpError(404, 'Evento não encontrado');
-  run('DELETE FROM contact_events WHERE id = ?', Number(req.params.eventId));
-  refreshContactStage(ev.contact_id);
-  res.json(getContact(userId, ev.contact_id));
+  await run('DELETE FROM contact_events WHERE id = ?', Number(req.params.eventId));
+  await refreshContactStage(ev.contact_id);
+  res.json(await getContact(userId, ev.contact_id));
 });
 
 // ---------- Geração de mensagem ----------
@@ -181,16 +181,16 @@ contactsRouter.delete('/events/:eventId', (req, res) => {
 contactsRouter.post('/:id/generate', async (req, res) => {
   const userId = uid(req);
   const id = Number(req.params.id);
-  const contact = ownContact(userId, id);
+  const contact = await ownContact(userId, id);
   if (!contact) throw new HttpError(404, 'Contato não encontrado');
   const kind = (req.body?.kind ?? 'first_message') as MessageKind;
-  const settings = getSettings(userId);
-  const job = jobForContact(contact);
-  const company = contact.company_id ? get<{ name: string }>('SELECT name FROM companies WHERE id = ?', contact.company_id)?.name ?? null : null;
+  const settings = await getSettings(userId);
+  const job = await jobForContact(contact);
+  const company = contact.company_id ? ((await get<{ name: string }>('SELECT name FROM companies WHERE id = ?', contact.company_id))?.name ?? null) : null;
 
   let ev: MessagePromptInput['ev'] = null;
   if (kind === 'ev_delivery') {
-    const evRow = req.body?.ev_id ? getEV(userId, Number(req.body.ev_id)) : undefined;
+    const evRow = req.body?.ev_id ? await getEV(userId, Number(req.body.ev_id)) : undefined;
     if (!evRow) throw new HttpError(400, 'Escolha qual EV será entregue (crie um na seção Entrega de Valor).');
     ev = { kind: evRow.kind, title: evRow.title, summary: evRow.summary, content: evRow.content };
   }
@@ -201,8 +201,8 @@ contactsRouter.post('/:id/generate', async (req, res) => {
     contact,
     company,
     job: job ? { title: job.title, description: job.description, url: job.url } : null,
-    events: getContactEvents(id),
-    resume: resumeForJob(userId, job?.id ?? null),
+    events: await getContactEvents(id),
+    resume: await resumeForJob(userId, job?.id ?? null),
     instruction: req.body?.instruction,
     ev,
   };

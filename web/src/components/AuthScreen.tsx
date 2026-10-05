@@ -9,6 +9,7 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,7 +18,7 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
     setError(null);
     setLoading(true);
     try {
-      const out = mode === 'login' ? await api.auth.login(username, password) : await api.auth.register(username, name, password);
+      const out = mode === 'login' ? await api.auth.login(username, password) : await api.auth.register(username, name, password, code);
       onAuthenticated(out.user);
     } catch (err) {
       setError((err as Error).message);
@@ -49,6 +50,11 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
           <Field label="Senha" hint={mode === 'register' ? 'Mínimo de 6 caracteres' : undefined}>
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
           </Field>
+          {mode === 'register' && status.needsCode && (
+            <Field label="Código de convite">
+              <Input value={code} onChange={(e) => setCode(e.target.value)} autoCapitalize="none" autoComplete="off" />
+            </Field>
+          )}
         </div>
         {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <Button type="submit" variant="primary" loading={loading} className="mt-4 w-full">

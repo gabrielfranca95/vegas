@@ -24,12 +24,12 @@ app.use('/api/auth', authRouter);
 // Tudo abaixo exige login; cada usuário só enxerga os próprios dados.
 app.use('/api', requireAuth);
 
-app.get('/api/settings', (req, res) => {
-  res.json(toPublic(getSettings(uid(req))));
+app.get('/api/settings', async (req, res) => {
+  res.json(toPublic(await getSettings(uid(req))));
 });
 
-app.put('/api/settings', (req, res) => {
-  res.json(toPublic(updateSettings(uid(req), req.body ?? {})));
+app.put('/api/settings', async (req, res) => {
+  res.json(toPublic(await updateSettings(uid(req), req.body ?? {})));
 });
 
 app.post('/api/settings/test-ai', async (req, res) => {

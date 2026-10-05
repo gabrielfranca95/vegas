@@ -13,10 +13,10 @@ const CONTACT_SELECT = `
   LEFT JOIN jobs j ON j.id = c.job_id
 `;
 
-function hydrateContacts(rows: any[], settings: Settings): Contact[] {
+async function hydrateContacts(rows: any[], settings: Settings): Promise<Contact[]> {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const events = all<ContactEvent>(
+  const events = await all<ContactEvent>(
     `SELECT id, contact_id, type, content, occurred_at FROM contact_events WHERE contact_id IN (${ids.map(() => '?').join(',')}) ORDER BY occurred_at, id`,
     ...ids,
   );
@@ -33,12 +33,12 @@ function hydrateContacts(rows: any[], settings: Settings): Contact[] {
   });
 }
 
-export function listContacts(userId: number): Contact[] {
-  return hydrateContacts(all(`${CONTACT_SELECT} WHERE c.user_id = ? ORDER BY c.updated_at DESC`, userId), getSettings(userId));
+export async function listContacts(userId: number): Promise<Contact[]> {
+  return hydrateContacts(await all(`${CONTACT_SELECT} WHERE c.user_id = ? ORDER BY c.updated_at DESC`, userId), await getSettings(userId));
 }
 
-export function getContact(userId: number, id: number): Contact | undefined {
-  return hydrateContacts(all(`${CONTACT_SELECT} WHERE c.user_id = ? AND c.id = ?`, userId, id), getSettings(userId))[0];
+export async function getContact(userId: number, id: number): Promise<Contact | undefined> {
+  return (await hydrateContacts(await all(`${CONTACT_SELECT} WHERE c.user_id = ? AND c.id = ?`, userId, id), await getSettings(userId)))[0];
 }
 
 /** Linha bruta do contato, apenas se pertencer ao usuário. */
@@ -51,17 +51,17 @@ export function getContactEvents(contactId: number) {
 }
 
 /** Recalcula o estágio salvo a partir da linha do tempo. */
-export function refreshContactStage(contactId: number) {
-  const stage = deriveStage(getContactEvents(contactId));
-  run('UPDATE contacts SET stage = ?, updated_at = ? WHERE id = ?', stage, nowIso(), contactId);
+export async function refreshContactStage(contactId: number) {
+  const stage = deriveStage(await getContactEvents(contactId));
+  await run('UPDATE contacts SET stage = ?, updated_at = ? WHERE id = ?', stage, nowIso(), contactId);
 }
 
 // ---------- Vagas ----------
 
-export function listJobs(userId: number): Job[] {
-  const rows = all<any>(
+export async function listJobs(userId: number): Promise<Job[]> {
+  const rows = await all<any>(
     `SELECT j.*, co.name AS company_name,
-      (SELECT COUNT(*) FROM resumes r WHERE r.job_id = j.id) AS resumes_count
+      (SELECT COUNT(*)::int FROM resumes r WHERE r.job_id = j.id) AS resumes_count
     FROM jobs j
     LEFT JOIN companies co ON co.id = j.company_id
     WHERE j.user_id = ?
@@ -69,7 +69,7 @@ export function listJobs(userId: number): Job[] {
     userId,
   );
   // Contatos ligados à vaga diretamente ou pela mesma empresa.
-  const contacts = listContacts(userId);
+  const contacts = await listContacts(userId);
   return rows.map((j) => {
     const related = contacts.filter((c) => c.job_id === j.id || (j.company_id && c.company_id === j.company_id));
     return {
@@ -80,8 +80,8 @@ export function listJobs(userId: number): Job[] {
   });
 }
 
-export function getJob(userId: number, id: number): Job | undefined {
-  return listJobs(userId).find((j) => j.id === id);
+export async function getJob(userId: number, id: number): Promise<Job | undefined> {
+  return (await listJobs(userId)).find((j) => j.id === id);
 }
 
 export function ownJob(userId: number, id: number) {
@@ -89,10 +89,10 @@ export function ownJob(userId: number, id: number) {
 }
 
 /** Vaga usada como contexto para um contato: a vinculada, ou a mais recente da mesma empresa. */
-export function jobForContact(contact: { user_id: number; job_id: number | null; company_id: number | null }) {
-  if (contact.job_id) return ownJob(contact.user_id, contact.job_id) ?? null;
+export async function jobForContact(contact: { user_id: number; job_id: number | null; company_id: number | null }) {
+  if (contact.job_id) return (await ownJob(contact.user_id, contact.job_id)) ?? null;
   if (contact.company_id) {
-    return get<any>('SELECT * FROM jobs WHERE user_id = ? AND company_id = ? ORDER BY updated_at DESC LIMIT 1', contact.user_id, contact.company_id) ?? null;
+    return (await get<any>('SELECT * FROM jobs WHERE user_id = ? AND company_id = ? ORDER BY updated_at DESC LIMIT 1', contact.user_id, contact.company_id)) ?? null;
   }
   return null;
 }
@@ -110,41 +110,41 @@ const RESUME_SELECT = `
   LEFT JOIN companies co ON co.id = j.company_id
 `;
 
-export function listResumes(userId: number): Resume[] {
-  return all(`${RESUME_SELECT} WHERE r.user_id = ? ORDER BY r.is_official DESC, r.updated_at DESC`, userId).map(toResume);
+export async function listResumes(userId: number): Promise<Resume[]> {
+  return (await all(`${RESUME_SELECT} WHERE r.user_id = ? ORDER BY r.is_official DESC, r.updated_at DESC`, userId)).map(toResume);
 }
 
-export function getResume(userId: number, id: number): Resume | undefined {
-  const row = get(`${RESUME_SELECT} WHERE r.user_id = ? AND r.id = ?`, userId, id);
+export async function getResume(userId: number, id: number): Promise<Resume | undefined> {
+  const row = await get(`${RESUME_SELECT} WHERE r.user_id = ? AND r.id = ?`, userId, id);
   return row ? toResume(row) : undefined;
 }
 
-export function getOfficialResume(userId: number): Resume | undefined {
-  const row = get(`${RESUME_SELECT} WHERE r.user_id = ? AND r.is_official = 1 LIMIT 1`, userId);
+export async function getOfficialResume(userId: number): Promise<Resume | undefined> {
+  const row = await get(`${RESUME_SELECT} WHERE r.user_id = ? AND r.is_official = 1 LIMIT 1`, userId);
   return row ? toResume(row) : undefined;
 }
 
 /** Currículo a usar como contexto: o adaptado para a vaga, se houver, senão o oficial. */
-export function resumeForJob(userId: number, jobId: number | null): ResumeData | null {
+export async function resumeForJob(userId: number, jobId: number | null): Promise<ResumeData | null> {
   if (jobId) {
-    const row = get<any>('SELECT data FROM resumes WHERE user_id = ? AND job_id = ? ORDER BY updated_at DESC LIMIT 1', userId, jobId);
+    const row = await get<any>('SELECT data FROM resumes WHERE user_id = ? AND job_id = ? ORDER BY updated_at DESC LIMIT 1', userId, jobId);
     if (row) return normalizeResume(JSON.parse(row.data));
   }
-  return getOfficialResume(userId)?.data ?? null;
+  return (await getOfficialResume(userId))?.data ?? null;
 }
 
-export function createResume(
+export async function createResume(
   userId: number,
   name: string,
   data: ResumeData,
   opts: { official?: boolean; jobId?: number | null; notes?: string | null } = {},
 ) {
   const now = nowIso();
-  const hasOfficial = Boolean(get('SELECT id FROM resumes WHERE user_id = ? AND is_official = 1', userId));
+  const hasOfficial = Boolean(await get('SELECT id FROM resumes WHERE user_id = ? AND is_official = 1', userId));
   const official = opts.official ?? !hasOfficial;
-  if (official) run('UPDATE resumes SET is_official = 0 WHERE user_id = ?', userId);
-  const res = run(
-    'INSERT INTO resumes (user_id, name, is_official, job_id, data, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  if (official) await run('UPDATE resumes SET is_official = 0 WHERE user_id = ?', userId);
+  const res = await run(
+    'INSERT INTO resumes (user_id, name, is_official, job_id, data, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
     userId,
     name,
     official ? 1 : 0,
@@ -154,7 +154,7 @@ export function createResume(
     now,
     now,
   );
-  return getResume(userId, Number(res.lastInsertRowid))!;
+  return (await getResume(userId, res.id!))!;
 }
 
 // ---------- EV ----------
@@ -167,10 +167,10 @@ const EV_SELECT = `
   LEFT JOIN companies co ON co.id = e.company_id
 `;
 
-export function listEVs(userId: number): EV[] {
+export function listEVs(userId: number): Promise<EV[]> {
   return all<EV>(`${EV_SELECT} WHERE e.user_id = ? ORDER BY e.updated_at DESC`, userId);
 }
 
-export function getEV(userId: number, id: number): EV | undefined {
+export function getEV(userId: number, id: number): Promise<EV | undefined> {
   return get<EV>(`${EV_SELECT} WHERE e.user_id = ? AND e.id = ?`, userId, id);
 }

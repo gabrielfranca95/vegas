@@ -98,7 +98,7 @@ async function callAnthropic(key: string, model: string, o: CompleteOptions) {
 }
 
 export async function complete(o: CompleteOptions): Promise<string> {
-  const settings = getSettings(o.userId);
+  const settings = await getSettings(o.userId);
   const provider = o.provider ?? settings.ai.provider;
   const key = settings.ai.keys[provider];
   const model = settings.ai.models[provider];

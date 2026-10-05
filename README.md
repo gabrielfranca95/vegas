@@ -12,9 +12,7 @@ npm run dev
 - Front: http://localhost:5173
 - API: http://localhost:3001
 
-Requer Node 22.5+ (usa o SQLite embutido do Node, `node:sqlite`).
-
-Para rodar como app único (sem hot reload): `npm run build && npm start` → http://localhost:3001
+Requer Node 22+. Banco de dados: PostgreSQL. Localmente não precisa instalar nada — sem `DATABASE_URL`, o app usa um Postgres embutido (PGlite) salvo em `data/pgdata`.
 
 ## Login
 
@@ -47,13 +45,25 @@ Eventos podem ter data/hora editada, então dá para registrar algo que acontece
 
 ## Dados
 
-Tudo fica em `data/vagas.db` (SQLite), inclusive as chaves de API. A pasta `data/` está no `.gitignore`.
+Os dados (inclusive as chaves de API de cada usuário) ficam no PostgreSQL: o embutido em `data/pgdata` no desenvolvimento, ou o indicado em `DATABASE_URL`. A pasta `data/` está no `.gitignore`.
 Também é possível definir as chaves por variável de ambiente: `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`.
+
+## Deploy (3 peças)
+
+| Peça | Arquivo | Detalhes |
+| --- | --- | --- |
+| Backend | `Dockerfile.backend` | API Node na porta 3001. Variáveis: `DATABASE_URL`, `REGISTRATION_CODE` (código exigido para criar conta), `MAX_USERS` (padrão 2). |
+| Frontend | `Dockerfile.frontend` | Site estático no nginx (porta 8080) que repassa `/api` para o backend. Variável: `BACKEND_URL` (ex.: `http://backend:3001`). |
+| Banco | PostgreSQL gerenciado | As tabelas são criadas automaticamente na primeira inicialização do backend. |
+
+Como o front repassa `/api` pela rede interna, navegador e API ficam no mesmo endereço e o cookie de login funciona sem configuração extra.
 
 ## Estrutura
 
 ```
-server/           API Express (TypeScript via tsx)
+server/           API Express (TypeScript; tsx no dev, esbuild no deploy)
+  db.ts           PostgreSQL (pg em produção, PGlite local) e criação das tabelas
+  auth.ts         login, sessões e cadastro
   routes/         jobs, contacts, resumes
   ai.ts           chamada aos provedores de IA
   prompts.ts      prompts de mensagens e currículo
@@ -62,4 +72,5 @@ server/           API Express (TypeScript via tsx)
   export/         geração de PDF e DOCX
 shared/types.ts   tipos usados pelo servidor e pelo front
 web/              front React + Vite + Tailwind
+deploy/           configuração do nginx do front
 ```
