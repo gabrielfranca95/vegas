@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Briefcase, ClipboardCopy, Copy, Download, Eye, EyeOff, FilePlus2, FileText, MoreHorizontal, ScanSearch, Sparkles, Star, Trash2, Upload } from 'lucide-react';
+import { Bot, Briefcase, MessageSquareText, ClipboardCopy, Copy, Download, Eye, EyeOff, FilePlus2, FileText, MoreHorizontal, ScanSearch, Sparkles, Star, Trash2, Upload } from 'lucide-react';
 import type { MatchAnalysis, Resume, ResumeData, ResumeReview } from '../../../shared/types';
 import type { Route } from '../App';
 import { navigate } from '../App';
@@ -280,9 +280,14 @@ function ResumeWorkspace({ resume, onImport, onAutomation }: { resume: Resume; o
                   ))}
                 </Select>
                 {resume.job_id && (
-                  <Button size="sm" onClick={() => navigate('vagas', { job: resume.job_id! })}>
-                    Abrir card
-                  </Button>
+                  <>
+                    <Button size="sm" onClick={() => navigate('vagas', { job: resume.job_id! })}>
+                      Abrir card
+                    </Button>
+                    <Button size="sm" variant="ai" icon={<MessageSquareText size={13} />} onClick={() => navigate('vagas', { job: resume.job_id!, tab: 'candidatura' })}>
+                      Perguntas / carta desta vaga
+                    </Button>
+                  </>
                 )}
               </div>
             )}

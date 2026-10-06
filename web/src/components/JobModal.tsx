@@ -98,7 +98,7 @@ export default function JobModal({ job, onClose, initialTab = 'detalhes' }: { jo
     { key: 'detalhes', label: 'Detalhes' },
     { key: 'pessoas', label: `Pessoas (${related.length})` },
     { key: 'curriculo', label: `Currículo & aderência (${jobResumes.length})` },
-    { key: 'candidatura', label: 'Candidatura (perguntas e carta)' },
+    { key: 'candidatura', label: '💬 Candidatura (perguntas e carta)' },
   ];
 
   return (
