@@ -352,17 +352,22 @@ export function buildApplicationChatPrompt(input: {
   resume: ResumeData | null;
   history: { role: 'user' | 'assistant'; content: string }[];
   message: string;
+  companySiteText?: string | null;
 }) {
   const s = input.settings;
   const system = [
-    'Você é o assistente de candidatura do candidato. Escreve respostas prontas para colar em formulários de vagas, cartas de apresentação e e-mails para recrutadores, em português do Brasil (ou no idioma da pergunta/vaga).',
-    'Escreva na primeira pessoa, como o próprio candidato, com tom profissional, natural e direto. Texto puro pronto para colar: sem títulos em Markdown, sem asteriscos, sem comentários seus antes ou depois.',
-    'Conecte as respostas aos requisitos da vaga e use exemplos concretos do currículo (método STAR quando for pergunta comportamental: situação, tarefa, ação, resultado).',
-    'Se vierem várias perguntas, responda cada uma em sequência, repetindo a pergunta numerada antes da resposta.',
-    'Carta de apresentação: 3 a 4 parágrafos curtos (abertura com o interesse na vaga, 1-2 parágrafos de fit com resultados do currículo, fechamento com disponibilidade), sem cabeçalho de endereço.',
-    'Veracidade: use só fatos do currículo, das instruções do candidato e da conversa. Se a pergunta depende de algo que você não sabe (pretensão salarial, disponibilidade, data de início, documentos), não invente: pergunte isso ao candidato em uma frase curta e, se fizer sentido, já mostre como a resposta ficaria.',
-    'Se o candidato pedir ajuste ("mais curto", "mais formal", "em inglês"), reescreva a última resposta.',
-  ].join('\n');
+    'Você é o assistente de candidatura do candidato. Escreve textos prontos para colar em formulários de vagas, campos de apresentação, cartas e e-mails para recrutadores, em português do Brasil (ou no idioma da pergunta/vaga). Esse texto costuma ser o ÚNICO contato do candidato com a empresa: ele precisa causar impacto.',
+    'POSICIONAMENTO OFERTA x DEMANDA: a vaga descreve uma demanda da empresa; o candidato é a oferta que resolve essa demanda. Escreva como um profissional apresentando uma solução, não como alguém pedindo uma chance.',
+    'Para textos de apresentação, carta e "por que você é o melhor candidato": (1) abra nomeando a necessidade/objetivo que a vaga revela e posicionando o candidato como quem resolve — nunca abra com "Gostaria de me candidatar" ou "Venho por meio desta"; (2) para cada requisito-chave da vaga, dê a prova correspondente do currículo (resultado real, com número quando existir) — formato requisito → evidência; (3) cite algo específico e real da empresa (do site ou da vaga) e conecte ao trabalho do candidato; (4) mostre o diferencial: a combinação de competências que torna o candidato a escolha certa para ESTA vaga; (5) responda as perguntas que o recrutador deixou na descrição da vaga, se houver; (6) feche com um próximo passo confiante (ex.: disponibilidade para mostrar como faria X), sem súplica.',
+    'PROIBIDO: "oportunidade de aprender/crescer" como argumento principal, "humildemente", "acredito que posso agregar" sem prova, elogios vazios à empresa, adjetivos sobre si mesmo sem evidência ("proativo", "dedicado").',
+    'Forma: primeira pessoa, como o próprio candidato. Primeira frase forte. Parágrafos curtos e escaneáveis. Texto puro pronto para colar: sem títulos em Markdown, sem asteriscos, sem comentários seus antes ou depois. Carta/apresentação: 3 a 5 parágrafos curtos, sem cabeçalho de endereço.',
+    'Perguntas objetivas do formulário: responda direto e com prova (STAR em 2-3 frases nas comportamentais). Se vierem várias, responda cada uma repetindo a pergunta numerada antes.',
+    'Veracidade: use só fatos do currículo, das instruções do candidato e da conversa. Se a pergunta depende de algo que você não sabe (pretensão salarial, disponibilidade, data de início, documentos), não invente: pergunte ao candidato em uma frase curta e, se fizer sentido, já mostre como a resposta ficaria.',
+    'Se o candidato pedir ajuste ("mais curto", "mais formal", "em inglês"), reescreva a última resposta mantendo o posicionamento.',
+    s.strategy?.trim() ? `Estratégia geral de abordagem do candidato (aplique o que fizer sentido para texto escrito):\n${s.strategy.trim()}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const history = input.history
     .slice(-12)
@@ -375,6 +380,7 @@ export function buildApplicationChatPrompt(input: {
     input.resume ? `## Currículo do candidato (adaptado para esta vaga, quando existir)\n${resumeToText(input.resume)}` : '## Currículo\n(não cadastrado)',
     `## Sobre o candidato\nNome: ${s.profile.name || input.resume?.personal.name || ''}\nPitch: ${s.profile.pitch}\nCargos-alvo: ${s.profile.targetRoles}`,
     s.resumeAutomation.instructions.trim() ? `## Instruções/fatos declarados pelo candidato\n${s.resumeAutomation.instructions.trim().slice(0, 4000)}` : '',
+    input.companySiteText ? `## Site da empresa (para citar algo real e específico)\n${input.companySiteText.slice(0, 4000)}` : '',
     history ? `## Conversa até aqui\n${history}` : '',
     `## Nova mensagem do candidato\n${input.message}`,
   ]

@@ -6,6 +6,7 @@ import { all, findOrCreateCompany, get, nowIso, recordJobStatus, run } from '../
 import { buildApplicationChatPrompt, buildMatchPrompt } from '../prompts.ts';
 import { getJob, listJobs, ownJob, resumeForJob } from '../repo.ts';
 import { getSettings } from '../settings.ts';
+import { fetchSiteText } from '../site.ts';
 import { detectPlatform, scrapeJob } from '../scrape.ts';
 import { HttpError } from './errors.ts';
 import { enqueueTailoring, maybeAutoTailor } from '../tailor.ts';
@@ -223,12 +224,15 @@ jobsRouter.post('/:id/chat', async (req, res) => {
   if (!message) throw new HttpError(400, 'Escreva a pergunta ou o pedido.');
 
   const history = await all<{ role: 'user' | 'assistant'; content: string }>('SELECT role, content FROM job_chats WHERE job_id = ? ORDER BY id', job.id);
+  const website = job.company_id ? (await get<{ website: string | null }>('SELECT website FROM companies WHERE id = ?', job.company_id))?.website : null;
+  const companySiteText = website ? await fetchSiteText(website) : null;
   const { system, prompt } = buildApplicationChatPrompt({
     settings: await getSettings(userId),
     job: { ...job, company: job.company_name },
     resume: await resumeForJob(userId, job.id),
     history,
     message,
+    companySiteText,
   });
   const r = await completeWithModel({ userId, system, prompt, maxTokens: 6000 });
   const answer = r.text.trim();
