@@ -115,3 +115,16 @@ export function safeFileName(name: string) {
       .slice(0, 80) || 'curriculo'
   );
 }
+
+/** Nome curto de arquivo de currículo: "Nome_Sobrenome_Curriculo" (primeiro e último nome). */
+export function resumeFileName(personName: string) {
+  const parts = personName.trim().split(/\s+/).filter(Boolean);
+  const short = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0] ?? '';
+  return safeFileName(`${short} Curriculo`).slice(0, 40);
+}
+
+/** Título curto de vaga: só o cargo (títulos do RioVagas trazem empresa, salário e bairro separados por "–"). */
+export function shortJobTitle(title: string, max = 40) {
+  const first = title.split(/\s+[–—-]\s+/)[0].trim() || title.trim();
+  return first.length > max ? `${first.slice(0, max - 1).trim()}…` : first;
+}

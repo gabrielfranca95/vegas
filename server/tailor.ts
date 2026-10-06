@@ -3,7 +3,7 @@ import { completeJson } from './ai.ts';
 import { get, nowIso, run } from './db.ts';
 import { buildTailorPrompt } from './prompts.ts';
 import { createResume, getOfficialResume, getResume, ownJob } from './repo.ts';
-import { normalizeResume } from './resume-utils.ts';
+import { normalizeResume, shortJobTitle } from './resume-utils.ts';
 import { getSettings } from './settings.ts';
 import { statusByJob } from './tailor-status.ts';
 import { nearestAddress } from './geo.ts';
@@ -58,7 +58,8 @@ export async function tailorForJob(userId: number, jobId: number, baseResumeId?:
         ? `Endereço no cabeçalho: ${chosen} (vaga remota — endereço principal).`
         : `Endereço no cabeçalho: ${chosen} (não consegui localizar o endereço da vaga no mapa; confira).`;
   }
-  const name = `${job.company_name ?? 'Vaga'} · ${job.title}`.slice(0, 120);
+  const company = (job.company_name ?? 'Vaga').trim();
+  const name = `${company.length > 28 ? `${company.slice(0, 27).trim()}…` : company} · ${shortJobTitle(job.title)}`;
   // Cargos renomeados e datas estimadas ficam destacados para o candidato conferir.
   const toReview = (out.changes ?? []).filter((c) => /^(cargo renomeado|data estimada)/i.test(c.trim()));
   const otherChanges = (out.changes ?? []).filter((c) => !toReview.includes(c));

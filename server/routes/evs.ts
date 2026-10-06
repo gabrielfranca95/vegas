@@ -160,6 +160,6 @@ evsRouter.get('/:id/pdf', async (req, res) => {
     },
   });
   res.setHeader('content-type', 'application/pdf');
-  res.setHeader('content-disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${safeFileName(`${ev.company_name ?? ''} ${ev.title}`)}.pdf"`);
+  res.setHeader('content-disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${safeFileName(`Flash Report ${ev.company_name ?? ''}`).slice(0, 40)}.pdf"`);
   res.send(buffer);
 });

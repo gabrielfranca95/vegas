@@ -10,7 +10,7 @@ import { resumeToDocx } from '../export/docx.ts';
 import { resumeToPdf } from '../export/pdf.ts';
 import { buildParsePrompt, buildReviewPrompt, buildSectionPrompt } from '../prompts.ts';
 import { createResume, getJob, getResume, listResumes, ownJob } from '../repo.ts';
-import { emptyResume, normalizeResume, safeFileName } from '../resume-utils.ts';
+import { emptyResume, normalizeResume, resumeFileName } from '../resume-utils.ts';
 import { detectPlatform, scrapeJob } from '../scrape.ts';
 import { HttpError } from './errors.ts';
 
@@ -77,7 +77,7 @@ resumesRouter.get('/:id/export', async (req, res) => {
   const r = await getResume(uid(req), Number(req.params.id));
   if (!r) throw new HttpError(404, 'Currículo não encontrado');
   const format = req.query.format === 'docx' ? 'docx' : 'pdf';
-  const base = safeFileName(`Curriculo ${r.data.personal.name || ''} ${r.is_official ? '' : r.company_name ?? r.name}`);
+  const base = resumeFileName(r.data.personal.name || 'Curriculo');
   const buffer = format === 'pdf' ? await resumeToPdf(r.data) : await resumeToDocx(r.data);
   res.setHeader(
     'content-type',
