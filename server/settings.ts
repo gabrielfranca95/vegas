@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
     targetRoles: '',
     pitch: '',
     tone: 'profissional, cordial e direto, sem parecer robótico',
+    addresses: [],
   },
   strategy: [
     'INTENÇÃO CLARA E ELEGANTE: com recrutador/RH, deixe claro que o candidato está mapeando o mercado para o próximo desafio profissional na área dele. Nunca peça vaga ou CV diretamente; o fechamento abre a porta ("explorarmos possíveis oportunidades de colaboração no time").',

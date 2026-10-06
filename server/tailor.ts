@@ -6,6 +6,8 @@ import { createResume, getOfficialResume, getResume, ownJob } from './repo.ts';
 import { normalizeResume } from './resume-utils.ts';
 import { getSettings } from './settings.ts';
 import { statusByJob } from './tailor-status.ts';
+import { nearestAddress } from './geo.ts';
+import { normalizeText } from './similarity.ts';
 
 export interface TailorResult {
   resume: Resume;
@@ -25,24 +27,44 @@ export async function tailorForJob(userId: number, jobId: number, baseResumeId?:
   if (!base) throw new Error('Cadastre o currículo base (oficial) na aba Currículo.');
 
   const settings = await getSettings(userId);
+  const addresses = (settings.profile.addresses ?? []).map((a) => a.trim()).filter(Boolean).slice(0, 3);
   const { system, prompt } = buildTailorPrompt(
     base.data,
     { title: job.title, company: job.company_name, description: job.description, location: job.location, workModel: job.work_model },
     settings.resumeAutomation.instructions,
     { flexibleTitles: settings.resumeAutomation.flexibleTitles, estimateDates: settings.resumeAutomation.estimateDates },
+    addresses,
   );
-  const out = await completeJson<{ resume: unknown; changes?: string[]; match?: MatchAnalysis }>({ userId, system, prompt, maxTokens: 16000 });
+  const out = await completeJson<{ resume: unknown; jobLocation?: string; changes?: string[]; match?: MatchAnalysis }>({ userId, system, prompt, maxTokens: 16000 });
   if (!out.resume) throw new Error('A IA não retornou o currículo adaptado. Tente novamente.');
 
   const data = normalizeResume(out.resume);
   // O texto final do currículo base (ex.: filosofia profissional) é mantido exatamente igual em todas as versões.
   if (base.data.closing.text.trim()) data.closing = { ...base.data.closing };
+
+  // Endereço do cabeçalho: o mais próximo do local da vaga, calculado por distância real (não pela IA).
+  let addressNote = '';
+  const jobPlace = String(job.location || out.jobLocation || '').trim();
+  if (!job.location && out.jobLocation?.trim()) await run('UPDATE jobs SET location = ? WHERE id = ?', out.jobLocation.trim(), job.id);
+  if (addresses.length) {
+    const remote = /remot/i.test(`${job.work_model ?? ''} ${jobPlace}`);
+    const nearest = !remote && jobPlace ? await nearestAddress(addresses, jobPlace) : null;
+    const aiPick = addresses.find((a) => normalizeText(data.personal.location).includes(normalizeText(a).split(',')[0]));
+    const chosen = nearest?.address ?? aiPick ?? addresses[0];
+    data.personal.location = chosen;
+    addressNote = nearest
+      ? `Endereço no cabeçalho: ${chosen} — o mais próximo da vaga (${jobPlace}, ~${Math.round(nearest.km)} km).`
+      : remote
+        ? `Endereço no cabeçalho: ${chosen} (vaga remota — endereço principal).`
+        : `Endereço no cabeçalho: ${chosen} (não consegui localizar o endereço da vaga no mapa; confira).`;
+  }
   const name = `${job.company_name ?? 'Vaga'} · ${job.title}`.slice(0, 120);
   // Cargos renomeados e datas estimadas ficam destacados para o candidato conferir.
   const toReview = (out.changes ?? []).filter((c) => /^(cargo renomeado|data estimada)/i.test(c.trim()));
   const otherChanges = (out.changes ?? []).filter((c) => !toReview.includes(c));
   const notes = [
     toReview.length ? `Revisar antes de enviar:\n- ${toReview.join('\n- ')}` : '',
+    addressNote,
     out.match ? `Aderência estimada: ${out.match.score}%` : '',
     otherChanges.length ? `Mudanças:\n- ${otherChanges.join('\n- ')}` : '',
     out.match?.gaps?.length ? `Lacunas (a vaga pede e o currículo não demonstra):\n- ${out.match.gaps.join('\n- ')}` : '',

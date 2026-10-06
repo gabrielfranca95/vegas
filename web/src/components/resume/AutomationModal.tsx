@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { useData } from '../../lib/store';
 import { useToast } from '../../lib/toast';
 import { Button, Modal, Textarea } from '../ui';
+import AddressFields from '../AddressFields';
 
 const EXAMPLE = `Sou profissional de [área] com foco em [especialidades]. Ao adaptar para cada vaga:
 - Se for vaga de [cargo A], destaque [experiências/temas A]; se for [cargo B], destaque [temas B].
@@ -19,6 +20,7 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const [auto, setAuto] = useState(settings?.resumeAutomation.autoOnNewJob ?? true);
   const [flexibleTitles, setFlexibleTitles] = useState(settings?.resumeAutomation.flexibleTitles ?? false);
   const [estimateDates, setEstimateDates] = useState(settings?.resumeAutomation.estimateDates ?? false);
+  const [addresses, setAddresses] = useState<string[]>(settings?.profile.addresses ?? []);
   const [saving, setSaving] = useState(false);
   const [queuing, setQueuing] = useState(false);
 
@@ -28,7 +30,12 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
   const save = async () => {
     setSaving(true);
     try {
-      setSettings(await api.settings.save({ resumeAutomation: { instructions, autoOnNewJob: auto, flexibleTitles, estimateDates } }));
+      setSettings(
+        await api.settings.save({
+          resumeAutomation: { instructions, autoOnNewJob: auto, flexibleTitles, estimateDates },
+          profile: { ...settings!.profile, addresses: addresses.map((a) => a.trim()).filter(Boolean) },
+        }),
+      );
       toast('Automação salva');
       return true;
     } catch (e) {
@@ -95,6 +102,8 @@ export default function AutomationModal({ onClose }: { onClose: () => void }) {
             </button>
           )}
         </div>
+
+        <AddressFields value={addresses} onChange={setAddresses} />
 
         <div className="space-y-2 rounded-lg border border-slate-200 p-3">
           <label className="flex items-start gap-2 text-sm text-slate-800">

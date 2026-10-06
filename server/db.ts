@@ -188,6 +188,14 @@ await driver.exec(`
     updated_at   TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS geocache (
+    query      TEXT PRIMARY KEY,
+    lat        DOUBLE PRECISION,
+    lon        DOUBLE PRECISION,
+    label      TEXT,
+    created_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS job_chats (
     id         SERIAL PRIMARY KEY,
     job_id     INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,

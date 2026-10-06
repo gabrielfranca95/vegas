@@ -3,6 +3,7 @@ import { CheckCircle2, KeyRound, Plug, Plus, Save, Trash2 } from 'lucide-react';
 import type { AIProvider, PublicSettings, RoleCategory } from '../../../shared/types';
 import { AI_PROVIDERS, ROLE_CATEGORIES } from '../../../shared/types';
 import { Button, Field, Input, Textarea } from '../components/ui';
+import AddressFields from '../components/AddressFields';
 import { api } from '../lib/api';
 import { useData } from '../lib/store';
 import { useAuth } from '../lib/auth';
@@ -157,6 +158,9 @@ export default function SettingsPage() {
             <Field label="Tom das mensagens" className="sm:col-span-2">
               <Input value={form.profile.tone} onChange={(e) => setProfile('tone', e.target.value)} />
             </Field>
+            <div className="sm:col-span-2">
+              <AddressFields value={form.profile.addresses ?? []} onChange={(addresses) => setForm((f) => ({ ...f, profile: { ...f.profile, addresses } }))} />
+            </div>
           </div>
         </Card>
 

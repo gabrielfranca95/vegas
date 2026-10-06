@@ -111,6 +111,8 @@ export interface Settings {
     targetRoles: string;
     pitch: string;
     tone: string;
+    /** Até 3 endereços reais (bairro e cidade) onde o candidato reside; o mais próximo da vaga vai no currículo. */
+    addresses: string[];
   };
   /** Diretrizes de influência aplicadas a todas as mensagens (postura, STAR, reciprocidade…). */
   strategy: string;

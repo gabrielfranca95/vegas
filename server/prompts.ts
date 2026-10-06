@@ -217,6 +217,7 @@ export function buildTailorPrompt(
   job: { title: string; company: string | null; description: string; location?: string | null; workModel?: string | null },
   instructions = '',
   ruleOptions: ResumeRuleOptions = {},
+  addresses: string[] = [],
 ) {
   const system = [
     'Você é um especialista em adaptar currículos para vagas específicas, maximizando a aderência (inclusive para filtros ATS) sem mentir.',
@@ -224,9 +225,14 @@ export function buildTailorPrompt(
     '- Mantenha todos os campos "id" existentes. Pode reordenar experiências apenas se fizer sentido; não remova experiências profissionais, mas pode condensar as menos relevantes.',
     '- Ajuste a headline e o resumo para a vaga; reordene habilidades priorizando as pedidas na vaga que o candidato REALMENTE tem (no base ou declaradas nas instruções).',
     '- Siga as instruções do candidato (foco por tipo de cargo, endereço a usar etc.) em tudo o que não conflitar com as regras acima. Se o currículo base já tem "closing", copie-o sem alterações; se não tem e o candidato pediu um texto final, coloque-o em "closing" ({"title": "...", "text": "..."}).',
-    'Responda em JSON: {"resume": <objeto completo no MESMO formato do currículo recebido>, "changes": ["mudança 1", ...], "match": {"score": 0-100, "strengths": [...], "gaps": [...], "missingKeywords": [...], "tips": [...]}}',
+    addresses.length
+      ? `- Endereço do cabeçalho (personal.location): o candidato reside em ${addresses.map((a) => `"${a}"`).join(', ')}. Use o mais próximo do local de trabalho da vaga (se remota, o primeiro). Não use nenhum outro endereço.`
+      : '',
+    'Responda em JSON: {"resume": <objeto completo no MESMO formato do currículo recebido>, "jobLocation": "bairro e cidade do local de trabalho citados na vaga, ou vazio se não houver", "changes": ["mudança 1", ...], "match": {"score": 0-100, "strengths": [...], "gaps": [...], "missingKeywords": [...], "tips": [...]}}',
     '"gaps" e "missingKeywords" são requisitos da vaga que o currículo não demonstra — NÃO os adicione ao currículo; apenas liste para o candidato avaliar.',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const prompt = [
     instructions.trim() ? `## Instruções do candidato (siga-as dentro das regras)\n${instructions.trim().slice(0, 6000)}` : '',
