@@ -8,6 +8,11 @@ import { Button, Textarea } from './ui';
 
 const QUICK: { label: string; text: string; send?: boolean }[] = [
   { label: 'Carta de apresentação', text: 'Escreva uma carta de apresentação para esta vaga.', send: true },
+  {
+    label: 'Por que sou o melhor candidato',
+    text: 'O formulário da vaga pede: "Explique ao recrutador de que forma sua qualificação atende aos requisitos da vaga e porque você é o melhor candidato para preenchê-la. Utilize também esse espaço para responder questões formuladas pelo recrutador na descrição da vaga." Escreva esse texto ligando cada requisito principal da vaga à minha experiência real e responda também qualquer pergunta que esteja na descrição da vaga.',
+    send: true,
+  },
   { label: 'Perguntas do formulário', text: 'Responda estas perguntas da candidatura:\n1. \n2. \n3. ' },
   { label: 'Por que esta empresa?', text: 'Responda: por que você quer trabalhar nesta empresa e nesta vaga?', send: true },
   { label: 'Fale sobre você', text: 'Responda em até 600 caracteres: "Fale um pouco sobre você".', send: true },
