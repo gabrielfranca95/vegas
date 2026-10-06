@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExternalLink, FileText, Gauge, Gift, Loader2, Mail, Plus, Sparkles, Trash2, UserRound } from 'lucide-react';
+import { Download, ExternalLink, FileText, Gauge, Gift, Loader2, Mail, Plus, Sparkles, Trash2, UserRound } from 'lucide-react';
 import type { Job, MatchAnalysis } from '../../../shared/types';
 import { CONTACT_STAGES, ROLE_CATEGORIES } from '../../../shared/types';
 import { navigate } from '../App';
@@ -43,6 +43,7 @@ export default function JobModal({ job, onClose, initialTab = 'detalhes' }: { jo
   const related = contacts.filter((c) => c.job_id === job.id || (job.company_id && c.company_id === job.company_id));
   const jobResumes = resumes.filter((r) => r.job_id === job.id);
   const official = resumes.find((r) => r.is_official);
+  const latestResume = [...jobResumes].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
 
   const save = async () => {
     setSaving(true);
@@ -199,6 +200,30 @@ export default function JobModal({ job, onClose, initialTab = 'detalhes' }: { jo
 
       {tab === 'curriculo' && (
         <div className="space-y-4">
+          {latestResume && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+              <FileText size={18} className="text-emerald-700" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-emerald-900">Currículo adaptado pronto</p>
+                <p className="truncate text-xs text-emerald-800">
+                  {latestResume.name} · atualizado {relativeTime(latestResume.updated_at)}
+                </p>
+              </div>
+              <a href={api.resumes.exportUrl(latestResume.id, 'pdf')}>
+                <Button variant="success" size="sm" icon={<Download size={14} />}>
+                  Baixar PDF
+                </Button>
+              </a>
+              <a href={api.resumes.exportUrl(latestResume.id, 'docx')}>
+                <Button size="sm" icon={<Download size={14} />}>
+                  Baixar Word
+                </Button>
+              </a>
+              <Button size="sm" variant="ghost" onClick={() => navigate('curriculo', { id: latestResume.id })}>
+                Abrir no editor
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button variant="ai" icon={<Sparkles size={16} />} loading={tailoring} onClick={tailor}>
               {jobResumes.length ? 'Adaptar de novo (atualiza a versão)' : 'Gerar currículo adaptado para esta vaga'}
