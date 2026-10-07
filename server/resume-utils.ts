@@ -116,11 +116,65 @@ export function safeFileName(name: string) {
   );
 }
 
-/** Nome curto de arquivo de currículo: "Nome_Sobrenome_Curriculo" (primeiro e último nome). */
-export function resumeFileName(personName: string) {
+const normalizeWords = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 1 && !['de', 'da', 'do', 'em', 'para', 'com'].includes(w));
+
+const GENERIC_COMPANY = /^(grupo|holding|do|da|de|ramo|empresa|companhia|cia|s\.?a\.?|ltda)$/i;
+
+const titleCase = (t: string) => t.replace(/\p{L}+/gu, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase());
+
+function slug(text: string, max: number) {
+  const out = safeFileName(titleCase(text));
+  return out.length > max ? out.slice(0, max).replace(/_+[^_]*$/, '') || out.slice(0, max) : out;
+}
+
+/**
+ * Nome de arquivo curto e único por vaga:
+ *   oficial  → "Nome_Sobrenome_CV"
+ *   adaptado → "Nome_Sobrenome_CV_Empresa" (+ cargo resumido e, se preciso, o id quando houver outro igual)
+ */
+export function resumeFileName(
+  personName: string,
+  target: { id: number; company: string | null; title: string | null } | null,
+  siblings: { id: number; company: string | null; title: string | null }[] = [],
+) {
   const parts = personName.trim().split(/\s+/).filter(Boolean);
-  const short = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0] ?? '';
-  return safeFileName(`${short} Curriculo`).slice(0, 40);
+  const person = safeFileName(parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0] ?? 'Curriculo').slice(0, 24);
+  const base = `${person}_CV`;
+  if (!target) return base;
+
+  const companyKey = (c: string | null) =>
+    slug(
+      (c ?? '')
+        .split(/\s+/)
+        .filter((w) => !GENERIC_COMPANY.test(w))
+        .slice(0, 2)
+        .join(' ') || c || 'Vaga',
+      16,
+    );
+  const withCompany = `${base}_${companyKey(target.company)}`;
+  const others = siblings.filter((x) => x.id !== target.id);
+  const sameCompany = others.filter((x) => `${base}_${companyKey(x.company)}` === withCompany);
+  if (!sameCompany.length) return withCompany;
+
+  // Usa as palavras do cargo que o diferenciam das outras vagas da mesma empresa.
+  const titleWords = (t: string | null) => normalizeWords(shortJobTitle(t ?? '', 60));
+  const shared = new Set(sameCompany.flatMap((x) => titleWords(x.title)));
+  const own = titleWords(target.title);
+  const distinct = own.filter((w) => !shared.has(w));
+  const titleKey = (words: string[]) => slug(words.join(' '), 22);
+  const withTitle = `${withCompany}_${titleKey(distinct.length ? distinct : own)}`;
+  const clash = sameCompany.some((x) => {
+    const w = titleWords(x.title);
+    const d = w.filter((word) => !own.includes(word));
+    return `${withCompany}_${titleKey(d.length ? d : w)}` === withTitle;
+  });
+  return clash ? `${withTitle}_${target.id}` : withTitle;
 }
 
 /** Título curto de vaga: só o cargo (títulos do RioVagas trazem empresa, salário e bairro separados por "–"). */

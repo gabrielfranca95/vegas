@@ -5,7 +5,7 @@ import type { ResumeAIAction, ResumeData, ResumeReview } from '../../shared/type
 import { AIError, completeJson } from '../ai.ts';
 import { tailorForJob } from '../tailor.ts';
 import { uid } from '../auth.ts';
-import { findOrCreateCompany, get, nowIso, recordJobStatus, run } from '../db.ts';
+import { all, findOrCreateCompany, get, nowIso, recordJobStatus, run } from '../db.ts';
 import { resumeToDocx } from '../export/docx.ts';
 import { resumeToPdf } from '../export/pdf.ts';
 import { buildParsePrompt, buildReviewPrompt, buildSectionPrompt } from '../prompts.ts';
@@ -77,7 +77,17 @@ resumesRouter.get('/:id/export', async (req, res) => {
   const r = await getResume(uid(req), Number(req.params.id));
   if (!r) throw new HttpError(404, 'Currículo não encontrado');
   const format = req.query.format === 'docx' ? 'docx' : 'pdf';
-  const base = resumeFileName(r.data.personal.name || 'Curriculo');
+  // Nome curto e único por vaga, para os downloads não virarem "(2)", "(3)".
+  const siblings = await all<{ id: number; company: string | null; title: string | null }>(
+    `SELECT r.id, co.name AS company, j.title FROM resumes r JOIN jobs j ON j.id = r.job_id LEFT JOIN companies co ON co.id = j.company_id
+     WHERE r.user_id = ? AND r.is_official = 0`,
+    uid(req),
+  );
+  const base = resumeFileName(
+    r.data.personal.name || 'Curriculo',
+    r.is_official || !r.job_id ? null : { id: r.id, company: r.company_name, title: r.job_title },
+    siblings,
+  );
   const buffer = format === 'pdf' ? await resumeToPdf(r.data) : await resumeToDocx(r.data);
   res.setHeader(
     'content-type',
