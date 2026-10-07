@@ -38,7 +38,9 @@ export const DEFAULT_SETTINGS: Settings = {
     addresses: [],
   },
   strategy: [
-    'INTENÇÃO CLARA E ELEGANTE: com recrutador/RH, deixe claro que o candidato está mapeando o mercado para o próximo desafio profissional na área dele. Nunca peça vaga ou CV diretamente; o fechamento abre a porta ("explorarmos possíveis oportunidades de colaboração no time").',
+    'INTENÇÃO CLARA E ELEGANTE: na primeira apresentação (nota do convite, ou 1ª mensagem quando não houve nota), com recrutador/RH, deixe claro que o candidato está mapeando o mercado para o próximo desafio profissional na área dele. Nunca peça vaga ou CV diretamente.',
+    'FLUXO DA CONVERSA: cada mensagem avança a conversa e NUNCA repete a anterior. Se a nota do convite já apresentou o candidato, a intenção e o que ele acompanha na empresa, a 1ª mensagem não se reapresenta: agradece a conexão em meia linha, traz algo NOVO (uma prova concreta ligada ao tema citado ou o material/EV) e termina com uma pergunta.',
+    'TRANSFORMAR A PESSOA EM ALIADA: (a) peça a opinião dela sobre a área dela — quem dá um conselho passa a torcer por quem pediu; (b) facilite o trabalho dela — ofereça algo que a ajude a avaliar e apresentar o candidato (ex.: um resumo de 1 página focado nos desafios do time); (c) dê provas concretas que ela possa repassar internamente, para que indicar o candidato a faça parecer bem. Sempre com fatos reais.',
     'ESPECIFICIDADE: cite pelo nome 1-2 iniciativas, produtos, áreas ou frentes REAIS da empresa (do site, da vaga ou das anotações). Proibido texto que serviria para qualquer empresa ("recentes movimentos sobre transformação digital", "admiro o trabalho da empresa").',
     'VALOR NA PRÓPRIA MENSAGEM: traga 1-2 resultados reais do currículo, com número quando existir, ligados ao setor/desafio da empresa. O material anexo (Flash Report) reforça, mas a mensagem precisa ter valor mesmo se o PDF não for aberto. Nunca "identifiquei alguns pontos" sem dizer quais.',
     'PONTE: conecte a experiência do candidato aos desafios ou ao setor da empresa ("atuo nos mesmos setores críticos que vocês").',
@@ -91,6 +93,20 @@ export const DEFAULT_SETTINGS: Settings = {
 
 
 /** Textos padrão antigos: contas que nunca os editaram recebem os padrões novos automaticamente. */
+const LEGACY_STRATEGIES: string[] = [
+  [
+    'INTENÇÃO CLARA E ELEGANTE: com recrutador/RH, deixe claro que o candidato está mapeando o mercado para o próximo desafio profissional na área dele. Nunca peça vaga ou CV diretamente; o fechamento abre a porta ("explorarmos possíveis oportunidades de colaboração no time").',
+    'ESPECIFICIDADE: cite pelo nome 1-2 iniciativas, produtos, áreas ou frentes REAIS da empresa (do site, da vaga ou das anotações). Proibido texto que serviria para qualquer empresa ("recentes movimentos sobre transformação digital", "admiro o trabalho da empresa").',
+    'VALOR NA PRÓPRIA MENSAGEM: traga 1-2 resultados reais do currículo, com número quando existir, ligados ao setor/desafio da empresa. O material anexo (Flash Report) reforça, mas a mensagem precisa ter valor mesmo se o PDF não for aberto. Nunca "identifiquei alguns pontos" sem dizer quais.',
+    'PONTE: conecte a experiência do candidato aos desafios ou ao setor da empresa ("atuo nos mesmos setores críticos que vocês").',
+    'MATERIAL CERTO PARA QUEM RECEBE: recrutador recebe fit executivo (como o candidato resolve desafios do time, com resultados); tech lead/gestor recebe perspectiva técnica; diretor/dono recebe visão de negócio. "Reflexão estratégica" só para diretor/dono.',
+    'FOLLOW-UP: pergunta curta, fácil e dentro da área de quem recebe. Para recrutador: "quais características vocês consideram essenciais no perfil de <cargo> na <empresa>?". Proibido perguntas abstratas sobre o futuro da tecnologia ou do mercado.',
+    'CONVERSA: responda o cumprimento ("estou bem, e você?"), depois responda exatamente o que foi perguntado com prova concreta. Pretensão salarial: se a senioridade/escopo não foi informado, pergunte isso antes; se já foi, responda com uma faixa.',
+    'QUALIDADE: português impecável, sem "novamente"/"de novo" na abertura, sem emojis soltos, sem bajulação. Frases curtas. Nunca a mesma mensagem para duas pessoas da mesma empresa.',
+    'LIMITES: nunca invente números, projetos, iniciativas da empresa, urgência ou contatos em comum.',
+  ].join('\n'),
+];
+
 const LEGACY_DEFAULTS = {
   strategy: [
     'Postura de protagonista: fale como quem resolve problemas e gera resultado, não como quem pede um favor. Nada de "gostaria de uma oportunidade"; mostre o que você faz e o que a empresa ganha.',
@@ -136,7 +152,7 @@ function deepMerge<T>(base: T, patch: unknown): T {
 export async function getSettings(userId: number): Promise<Settings> {
   const row = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', keyFor(userId));
   const stored = row ? JSON.parse(row.value) : {};
-  if (stored.strategy === LEGACY_DEFAULTS.strategy) delete stored.strategy;
+  if (stored.strategy === LEGACY_DEFAULTS.strategy || LEGACY_STRATEGIES.includes(stored.strategy)) delete stored.strategy;
   for (const [k, v] of Object.entries(LEGACY_DEFAULTS.approach)) {
     if (stored.approach?.[k] === v) delete stored.approach[k];
   }

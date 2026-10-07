@@ -27,15 +27,27 @@ export function resumeToText(r: ResumeData, opts: { compact?: boolean } = {}): s
 
 // ---------- Mensagens ----------
 
-const KIND_INSTRUCTIONS: Record<MessageKind, (limit: number, hasEv: boolean) => string> = {
+interface KindContext {
+  /** Houve convite com nota antes desta mensagem. */
+  invited: boolean;
+  inviteText: string | null;
+}
+
+const KIND_INSTRUCTIONS: Record<MessageKind, (limit: number, hasEv: boolean, ctx: KindContext) => string> = {
   invite_note: (limit) =>
     `Escreva a NOTA do convite de conexão do LinkedIn. Limite RÍGIDO de ${limit} caracteres (contando espaços). Estrutura: "Olá, <nome>." + quem o candidato é (cargo + especialização real) + um elemento ESPECÍFICO da empresa (iniciativa/produto/área real do contexto) + motivo para conectar (para recrutador/RH: está mapeando o próximo desafio na área). Sem pedir vaga ou CV, sem "admiro o trabalho".`,
-  first_message: (_l, hasEv) =>
-    `A pessoa aceitou o convite (ou já era conexão). Escreva a 1ª mensagem seguindo a estrutura do exemplo que FUNCIONOU: (1) "Olá, <nome>. Tudo bem?"; (2) quem o candidato é + intenção clara para recrutador/RH ("ao mapear o mercado para o meu próximo desafio profissional focado em <área>") ou interesse genuíno para os demais perfis; (3) por que ESTA empresa: cite pelo nome 1-2 iniciativas/frentes reais do contexto; (4) ponte com a atuação do candidato nos mesmos setores/desafios; (5) ${
-      hasEv
-        ? 'apresente o material anexo (EV) dizendo concretamente o que ele aborda, com 1-2 resultados reais do currículo (números quando existirem)'
-        : 'traga na própria mensagem 1-2 resultados reais do currículo (números quando existirem) ligados aos desafios da empresa'
-    }; (6) uma frase de sinergia; (7) fechamento: "Fico à disposição para trocarmos ideias e explorarmos possíveis oportunidades de colaboração no time." Sem "novamente", sem pedir CV/vaga. Entre 550 e 900 caracteres, em 4-5 parágrafos curtos.`,
+  first_message: (_l, hasEv, ctx) =>
+    ctx.invited
+      ? `A pessoa ACEITOU o convite. A nota do convite${ctx.inviteText ? ` ("${ctx.inviteText}")` : ''} já apresentou o candidato, a intenção e o que ele acompanha na empresa: NÃO repita nada disso (nem "Sou...", nem "mapeando o mercado", nem a mesma iniciativa da empresa com outras palavras). Escreva uma mensagem CURTA (máximo ~450 caracteres, 2-3 parágrafos) que avance a conversa: (1) "Obrigado por aceitar, <nome>." ou similar, em meia linha; (2) algo NOVO e concreto: ${
+          hasEv
+            ? 'apresente o material anexo (EV) dizendo em uma frase o que ele traz de útil para o time dela'
+            : 'um resultado real do currículo ligado ao tema/área citado na nota (com número, se existir), dito em uma frase'
+        }; (3) transforme a pessoa em aliada terminando com UMA pergunta fácil e específica sobre a área dela (para recrutador: se ela recruta para aquele time e o que mais pesa na escolha de um profissional ali) e, se fizer sentido, ofereça facilitar o trabalho dela (ex.: um resumo de 1 página focado nos desafios do time). Sem pedir vaga ou CV.`
+      : `A pessoa já era conexão (não houve nota de convite). Escreva a 1ª mensagem seguindo a estrutura do exemplo que FUNCIONOU: (1) "Olá, <nome>. Tudo bem?"; (2) quem o candidato é + intenção clara para recrutador/RH ("ao mapear o mercado para o meu próximo desafio profissional focado em <área>") ou interesse genuíno para os demais perfis; (3) por que ESTA empresa: cite pelo nome 1-2 iniciativas/frentes reais do contexto; (4) ponte com a atuação do candidato nos mesmos setores/desafios; (5) ${
+          hasEv
+            ? 'apresente o material anexo (EV) dizendo concretamente o que ele aborda, com 1-2 resultados reais do currículo (números quando existirem)'
+            : 'traga na própria mensagem 1-2 resultados reais do currículo (números quando existirem) ligados aos desafios da empresa'
+        }; (6) feche com uma pergunta fácil sobre a área da pessoa ou com "Fico à disposição para trocarmos ideias e explorarmos possíveis oportunidades de colaboração no time." Sem pedir CV/vaga. Entre 500 e 850 caracteres, em parágrafos curtos.`,
   ev_delivery: () =>
     'Escreva a mensagem que ENTREGA o material (EV) abaixo: contexto específico da empresa (iniciativa real citada pelo nome), o que o material aborda concretamente com 1-2 resultados reais do candidato, ligação com os desafios da empresa e fechamento abrindo para trocar ideias e explorar oportunidades de colaboração. Sem pedir CV/vaga. Máximo ~800 caracteres.',
   followup: () =>
@@ -83,6 +95,9 @@ export function buildMessagePrompt(i: MessagePromptInput) {
     .filter(Boolean)
     .join('\n');
 
+  const inviteEvent = i.events.find((e) => e.type === 'invite_sent');
+  const kindCtx: KindContext = { invited: Boolean(inviteEvent), inviteText: inviteEvent?.content?.trim() || null };
+
   const history = [...i.events]
     .filter((e) => e.type !== 'note' || e.content)
     .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))
@@ -90,7 +105,7 @@ export function buildMessagePrompt(i: MessagePromptInput) {
     .join('\n');
 
   const prompt = [
-    `## Tarefa\n${KIND_INSTRUCTIONS[i.kind](limit, Boolean(i.ev))}`,
+    `## Tarefa\n${KIND_INSTRUCTIONS[i.kind](limit, Boolean(i.ev), kindCtx)}`,
     `## Quem vai receber\nNome: ${c.name} (chame de "${firstName}")\nPerfil: ${roleLabel(c.role_category)}${c.role_title ? ` — cargo: ${c.role_title}` : ''}\nEmpresa: ${i.company ?? 'não informada'}\nCanal: ${c.platform}${c.notes ? `\nAnotações sobre a pessoa: ${c.notes}` : ''}`,
     `## Como abordar esse perfil\n${s.approach[c.role_category]}`,
     i.job

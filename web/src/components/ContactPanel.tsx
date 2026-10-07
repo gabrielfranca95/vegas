@@ -193,7 +193,18 @@ export default function ContactPanel({ contact }: { contact: Contact }) {
     contact.cadence.phase === 'encerrado'
       ? { label: 'Reabrir', run: () => addEvent('reopened') }
       : cur.key === 'invite'
-        ? { label: 'Já enviei o convite', run: () => addEvent('invite_sent') }
+        ? {
+            label: 'Já enviei o convite',
+            // Guarda a nota gerada no histórico, para a 1ª mensagem não repetir o que ela já disse.
+            run: async () => {
+              const note = kind === 'invite_note' && text.trim() ? text.trim() : undefined;
+              const updated = await addEvent('invite_sent', note);
+              if (updated && note) {
+                setText('');
+                setVariants([]);
+              }
+            },
+          }
         : cur.key === 'accept'
           ? { label: 'Aceitou o convite', run: () => addEvent('invite_accepted') }
           : cur.key === 'reply'
