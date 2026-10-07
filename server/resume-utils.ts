@@ -144,7 +144,7 @@ export function resumeFileName(
   siblings: { id: number; company: string | null; title: string | null }[] = [],
 ) {
   const parts = personName.trim().split(/\s+/).filter(Boolean);
-  const person = safeFileName(parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0] ?? 'Curriculo').slice(0, 24);
+  const person = safeFileName(titleCase(parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0] ?? 'Curriculo')).slice(0, 24);
   const base = `${person}_CV`;
   if (!target) return base;
 
