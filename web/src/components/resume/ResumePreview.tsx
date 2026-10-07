@@ -21,7 +21,7 @@ export default function ResumePreview({ data }: { data: ResumeData }) {
   const p = data.personal;
   const contacts = [p.location, p.phone, p.email, p.linkedin, p.github, p.website].filter((s) => s.trim());
   return (
-    <div className="mx-auto min-h-[860px] w-full max-w-[640px] bg-white px-10 py-9 text-[11px] leading-snug text-slate-800 shadow-md">
+    <div className="paper mx-auto min-h-[860px] w-full max-w-[640px] bg-white px-10 py-9 text-[11px] leading-snug text-slate-800 shadow-md">
       <h1 className="text-2xl font-bold text-slate-900">{p.name || 'Seu nome'}</h1>
       {p.headline && <p className="text-[13px] text-blue-900">{p.headline}</p>}
       {contacts.length > 0 && <p className="mt-1 text-[10px] text-slate-500">{contacts.join('   |   ')}</p>}

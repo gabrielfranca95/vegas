@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, Briefcase, FileText, Gift, Loader2, LogOut, MessagesSquare, Settings as SettingsIcon } from 'lucide-react';
+import { BarChart3, Briefcase, FileText, Gift, Loader2, LogOut, MessagesSquare, Moon, Settings as SettingsIcon, Sun } from 'lucide-react';
+import { useTheme } from './lib/theme';
 import { Dropdown, MenuItem } from './components/ui';
 import { useAuth } from './lib/auth';
 import { useData } from './lib/store';
@@ -34,6 +35,7 @@ export function navigate(tab: Tab, params: Record<string, string | number> = {})
 export default function App() {
   const { loading, contacts, settings } = useData();
   const { user, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [route, setRoute] = useState<Route>(parseHash);
 
   useEffect(() => {
@@ -91,6 +93,14 @@ export default function App() {
               <span className="xl:hidden">{aiReady ? 'IA' : 'Sem IA'}</span>
             </button>
           )}
+          <button
+            onClick={toggleTheme}
+            className="grid size-8 place-items-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            title={theme === 'dark' ? 'Mudar para o modo claro' : 'Mudar para o modo escuro'}
+            aria-label="Alternar tema"
+          >
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
           <Dropdown
             align="right"
             trigger={(toggle) => (

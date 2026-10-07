@@ -559,7 +559,7 @@ function QuickBtn({ type, label, onClick }: { type: EventType; label?: string; o
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition hover:shadow-sm"
+      className="tinted flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition hover:shadow-sm"
       style={{ borderColor: `${EVENT_COLORS[type]}55`, color: EVENT_COLORS[type], backgroundColor: `${EVENT_COLORS[type]}0d` }}
     >
       {EVENT_ICONS[type]}
@@ -580,7 +580,7 @@ function TimelineItem({ event, onChange }: { event: ContactEvent; onChange: (p: 
         {EVENT_ICONS[event.type]}
       </span>
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <span className="text-sm font-semibold" style={{ color }}>
+        <span className="tinted text-sm font-semibold" style={{ color }}>
           {EVENT_LABELS[event.type]}
         </span>
         <span className="text-xs text-slate-400">

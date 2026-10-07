@@ -112,7 +112,7 @@ export function Modal({
 export function Badge({ children, color = '#64748b', className = '' }: { children: ReactNode; color?: string; className?: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${className}`}
+      className={`tinted inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${className}`}
       style={{ backgroundColor: `${color}1a`, color }}
     >
       {children}

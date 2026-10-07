@@ -18,3 +18,115 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+
+/* ---------- Modo escuro ----------
+ * O app usa classes de cor fixas (slate, indigo, red…). No modo escuro as variáveis de cor do Tailwind
+ * são redefinidas: tons claros viram superfícies escuras, tons escuros de texto viram claros e os
+ * tons 50–200 das cores viram versões escuras. Botões sólidos (600/700) mantêm a cor original.
+ */
+:root {
+  --surface: #ffffff;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-track: #cde2fb;
+  --viz-deemph: #c3c2b7;
+  --viz-compare-track: #f1f0ec;
+  --viz-accent: #2a78d6;
+}
+
+.dark {
+  color-scheme: dark;
+  --surface: #151d2b;
+  --viz-grid: #2a3342;
+  --viz-axis: #3a4556;
+  --viz-track: #184f95;
+  --viz-deemph: #4a5568;
+  --viz-compare-track: #222b3a;
+  --viz-accent: #3987e5;
+
+  --color-slate-50: #121a28;
+  --color-slate-100: #0c1220;
+  --color-slate-200: #263142;
+  --color-slate-300: #364357;
+  --color-slate-400: #6b788c;
+  --color-slate-500: #8e9aab;
+  --color-slate-600: #a9b4c3;
+  --color-slate-700: #c5cdd9;
+  --color-slate-800: #dde3eb;
+  --color-slate-900: #eef2f6;
+
+  --color-indigo-50: #1b1f3c;
+  --color-indigo-100: #252a52;
+  --color-indigo-200: #383e78;
+  --color-indigo-700: #a5b4fc;
+  --color-indigo-800: #c7d2fe;
+
+  --color-violet-50: #221a3b;
+  --color-violet-100: #2e2150;
+  --color-violet-200: #4a3a82;
+  --color-violet-800: #ddd6fe;
+
+  --color-fuchsia-50: #2b1531;
+  --color-fuchsia-200: #69296f;
+  --color-fuchsia-700: #f0abfc;
+  --color-fuchsia-800: #f5d0fe;
+  --color-fuchsia-900: #fae8ff;
+
+  --color-red-50: #2c1517;
+  --color-red-100: #3e1a1d;
+  --color-red-200: #6a2a2e;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+
+  --color-emerald-50: #0f2921;
+  --color-emerald-100: #12372b;
+  --color-emerald-200: #1c5845;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+
+  --color-amber-50: #2b2210;
+  --color-amber-100: #3c2e12;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+
+  --color-sky-100: #10283a;
+  --color-sky-800: #bae6fd;
+}
+
+/* Cores usadas tanto em fundo sólido quanto em texto: só o texto clareia. */
+.dark .text-indigo-600 { color: #818cf8; }
+.dark .text-indigo-700 { color: #a5b4fc; }
+.dark .text-violet-700 { color: #c4b5fd; }
+.dark .text-emerald-600 { color: #34d399; }
+.dark .text-emerald-700 { color: #6ee7b7; }
+.dark .text-red-600 { color: #f87171; }
+.dark .text-fuchsia-600 { color: #e879f9; }
+.dark .text-blue-900 { color: #93c5fd; }
+
+/* Superfícies brancas viram o "cartão" escuro (text-white continua branco). */
+.dark .bg-white { background-color: var(--surface); }
+.dark .bg-white\/95 { background-color: color-mix(in oklab, var(--surface) 95%, transparent); }
+.dark .bg-white\/70 { background-color: color-mix(in oklab, var(--surface) 70%, transparent); }
+.dark .border-white { border-color: var(--surface); }
+
+/* Fundos escuros com texto branco (tooltips, avisos, avatar) continuam escuros. */
+.dark .bg-slate-700 { background-color: #3a4659; }
+.dark .bg-slate-800 { background-color: #2b3546; }
+.dark .bg-slate-900 { background-color: #1d2533; }
+.dark .bg-slate-900\/40 { background-color: rgb(0 0 0 / 0.6); }
+
+/* Selos e botões com cor definida no código: clareia para manter o contraste. */
+.dark .tinted { filter: brightness(1.55) saturate(1.1); }
+
+.dark .scroll-thin { scrollbar-color: #364357 transparent; }
+
+/* A prévia do currículo representa o papel: continua clara. */
+.dark .paper {
+  color-scheme: light;
+  --color-slate-300: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+}
+.dark .paper.bg-white { background-color: #ffffff; }
+.dark .paper .text-blue-900 { color: #1e3a8a; }

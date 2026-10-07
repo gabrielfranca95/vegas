@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Moon, Sun } from 'lucide-react';
+import { useTheme } from '../lib/theme';
 import type { AuthStatus, User } from '../../../shared/types';
 import { api } from '../lib/api';
 import { Button, Field, Input } from './ui';
@@ -11,6 +12,7 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { theme, toggle } = useTheme();
   const [loading, setLoading] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -28,7 +30,10 @@ export default function AuthScreen({ status, onAuthenticated }: { status: AuthSt
   };
 
   return (
-    <div className="grid min-h-full place-items-center p-4">
+    <div className="relative grid min-h-full place-items-center p-4">
+      <button onClick={toggle} type="button" className="absolute top-3 right-3 grid size-9 place-items-center rounded-full text-slate-500 hover:bg-slate-200" aria-label="Alternar tema">
+        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
       <form onSubmit={submit} className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-2 text-lg font-bold text-slate-900">
           <span className="grid size-9 place-items-center rounded-lg bg-indigo-600 text-white">

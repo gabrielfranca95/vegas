@@ -2,11 +2,11 @@ import { useState } from 'react';
 
 // Tokens de gráfico (paleta de referência validada): uma cor de destaque + cinza de contexto.
 export const VIZ = {
-  accent: '#2a78d6',
-  accentTrack: '#cde2fb',
-  deemphasis: '#c3c2b7',
-  grid: '#e1e0d9',
-  axis: '#c3c2b7',
+  accent: 'var(--viz-accent)',
+  accentTrack: 'var(--viz-track)',
+  deemphasis: 'var(--viz-deemph)',
+  grid: 'var(--viz-grid)',
+  axis: 'var(--viz-axis)',
   muted: '#898781',
   text: '#0b0b0b',
   textSecondary: '#52514e',
@@ -121,7 +121,7 @@ export function CompareBars({ items }: { items: { label: string; rate: number | 
             <span className="text-slate-500">{it.detail}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-5 flex-1 rounded-r" style={{ backgroundColor: '#f1f0ec' }}>
+            <div className="h-5 flex-1 rounded-r" style={{ backgroundColor: 'var(--viz-compare-track)' }}>
               <div className="h-full rounded-r" style={{ width: `${(it.rate ?? 0) * 100}%`, backgroundColor: it.emphasis ? VIZ.accent : VIZ.deemphasis }} />
             </div>
             <span className="w-10 text-right text-sm font-semibold text-slate-800 tabular-nums">{it.rate === null ? '—' : `${Math.round(it.rate * 100)}%`}</span>
@@ -144,7 +144,7 @@ export function Sparkline({ values }: { values: number[] }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-7 w-full overflow-visible" preserveAspectRatio="none" aria-hidden>
       <path d={d} fill="none" stroke={VIZ.deemphasis} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={lx} cy={ly} r={3} fill={VIZ.accent} stroke="#fff" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+      <circle cx={lx} cy={ly} r={3} fill={VIZ.accent} stroke="var(--surface)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
