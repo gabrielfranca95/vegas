@@ -382,7 +382,8 @@ export function buildApplicationChatPrompt(input: {
     'Para textos de apresentação, carta e "por que você é o melhor candidato": (1) abra nomeando a necessidade/objetivo que a vaga revela e posicionando o candidato como quem resolve — nunca abra com "Gostaria de me candidatar" ou "Venho por meio desta"; (2) para cada requisito-chave da vaga, dê a prova correspondente do currículo (resultado real, com número quando existir) — formato requisito → evidência; (3) cite algo específico e real da empresa (do site ou da vaga) e conecte ao trabalho do candidato; (4) mostre o diferencial: a combinação de competências que torna o candidato a escolha certa para ESTA vaga; (5) responda as perguntas que o recrutador deixou na descrição da vaga, se houver; (6) feche com um próximo passo confiante (ex.: disponibilidade para mostrar como faria X), sem súplica.',
     'PROIBIDO: "oportunidade de aprender/crescer" como argumento principal, "humildemente", "acredito que posso agregar" sem prova, elogios vazios à empresa, adjetivos sobre si mesmo sem evidência ("proativo", "dedicado").',
     'Forma: primeira pessoa, como o próprio candidato. Primeira frase forte. Parágrafos curtos e escaneáveis. Texto puro pronto para colar: sem títulos em Markdown, sem asteriscos, sem comentários seus antes ou depois. Carta/apresentação: 3 a 5 parágrafos curtos, sem cabeçalho de endereço.',
-    'Perguntas objetivas do formulário: responda direto e com prova (STAR em 2-3 frases nas comportamentais). Se vierem várias, responda cada uma repetindo a pergunta numerada antes.',
+    'Perguntas objetivas do formulário: responda direto e com prova (STAR em 2-3 frases nas comportamentais). Só repita a pergunta (numerada) quando o candidato mandar VÁRIAS perguntas de uma vez.',
+    'PRONTO PARA COLAR: comece direto pelo texto da resposta — NUNCA repita o enunciado do formulário nem o pedido do candidato. Texto para formulário, carta ou campo de apresentação é comunicação de mão única: NUNCA termine com pergunta ao recrutador; feche com uma frase de disponibilidade/confiança. Respeite qualquer limite de caracteres informado.',
     'Veracidade: use só fatos do currículo, das instruções do candidato e da conversa. Se a pergunta depende de algo que você não sabe (pretensão salarial, disponibilidade, data de início, documentos), não invente: pergunte ao candidato em uma frase curta e, se fizer sentido, já mostre como a resposta ficaria.',
     'Se o candidato pedir ajuste ("mais curto", "mais formal", "em inglês"), reescreva a última resposta mantendo o posicionamento.',
     s.strategy?.trim() ? `Estratégia geral de abordagem do candidato (aplique o que fizer sentido para texto escrito):\n${s.strategy.trim()}` : '',
@@ -409,4 +410,23 @@ export function buildApplicationChatPrompt(input: {
     .join('\n\n');
 
   return { system, prompt };
+}
+
+/**
+ * Deixa a resposta do assistente de candidatura pronta para colar: sem Markdown, sem o enunciado repetido
+ * no início e sem pergunta final ao recrutador. Respostas curtas que são só uma pergunta ao próprio
+ * candidato (ex.: pedindo a pretensão salarial) ficam como estão.
+ */
+export function cleanApplicationAnswer(text: string, request: string) {
+  let out = text.replace(/\*\*(.+?)\*\*/g, '$1').replace(/^#+\s*/gm, '').trim();
+  const head = request.trim().slice(0, 60).toLowerCase();
+  if (head.length > 20 && out.toLowerCase().startsWith(head)) {
+    out = out.split(/\n\s*\n/).slice(1).join('\n\n').trim();
+  }
+  const paragraphs = out.split(/\n\s*\n/);
+  const last = paragraphs[paragraphs.length - 1]?.trim() ?? '';
+  if (out.length > 300 && paragraphs.length > 1 && last.endsWith('?')) {
+    out = paragraphs.slice(0, -1).join('\n\n').trim();
+  }
+  return out;
 }

@@ -3,7 +3,7 @@ import type { MatchAnalysis } from '../../shared/types.ts';
 import { completeJson, completeWithModel } from '../ai.ts';
 import { uid } from '../auth.ts';
 import { all, findOrCreateCompany, get, nowIso, recordJobStatus, run } from '../db.ts';
-import { buildApplicationChatPrompt, buildMatchPrompt } from '../prompts.ts';
+import { buildApplicationChatPrompt, buildMatchPrompt, cleanApplicationAnswer } from '../prompts.ts';
 import { getJob, listJobs, ownJob, resumeForJob } from '../repo.ts';
 import { getSettings } from '../settings.ts';
 import { fetchSiteText } from '../site.ts';
@@ -235,7 +235,7 @@ jobsRouter.post('/:id/chat', async (req, res) => {
     companySiteText,
   });
   const r = await completeWithModel({ userId, system, prompt, maxTokens: 6000 });
-  const answer = r.text.trim();
+  const answer = cleanApplicationAnswer(r.text, message);
   if (!answer) throw new HttpError(502, 'A IA não retornou resposta. Tente novamente.');
 
   const now = nowIso();
